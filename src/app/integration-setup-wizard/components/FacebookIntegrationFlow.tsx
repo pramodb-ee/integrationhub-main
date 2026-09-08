@@ -55,8 +55,6 @@ type ConnectionState = 'idle' | 'connecting' | 'connected';
 
 interface FacebookIntegrationFlowProps {
   onTestLeadRetrieved?: (retrieved: boolean) => void;
-  onValidate?: () => void;
-  testLeadRetrieved?: boolean;
 }
 
 interface NoTestLeadModalProps {
@@ -142,7 +140,7 @@ interface TestLeadResultPanelProps {
 
 function TestLeadResultPanel({ result, onClose }: TestLeadResultPanelProps) {
   return (
-    <div className="mt-2 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+    <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
           <CheckCircle2 size={15} className="text-green-600" />
@@ -171,7 +169,32 @@ function TestLeadResultPanel({ result, onClose }: TestLeadResultPanelProps) {
   );
 }
 
-export default function FacebookIntegrationFlow({ onTestLeadRetrieved, onValidate, testLeadRetrieved }: FacebookIntegrationFlowProps) {
+const TEST_LEAD_VERIFICATION_CHECKS = [
+  'Lead payload matches the Meta Lead Ads schema',
+  'Required fields present: Name, Email, Phone',
+  'Form is Active and receiving live submissions',
+];
+
+function TestLeadVerifiedPanel() {
+  return (
+    <div className="mt-2 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+      <div className="flex items-center gap-2 mb-3">
+        <CheckCircle2 size={15} className="text-blue-600" />
+        <span className="text-[13px] font-semibold text-blue-800 dark:text-blue-400">Test Lead Verified</span>
+      </div>
+      <div className="space-y-1.5">
+        {TEST_LEAD_VERIFICATION_CHECKS.map((check) => (
+          <div key={check} className="flex items-start gap-2 text-[12px] text-blue-800 dark:text-blue-300">
+            <CheckCircle2 size={12} className="text-blue-600 mt-0.5 flex-shrink-0" />
+            <span>{check}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+export default function FacebookIntegrationFlow({ onTestLeadRetrieved }: FacebookIntegrationFlowProps) {
   const [connectionState, setConnectionState] = useState<ConnectionState>('idle');
   const [selectedPageId, setSelectedPageId] = useState<string>('');
   const [pageDropdownOpen, setPageDropdownOpen] = useState(false);
@@ -431,28 +454,14 @@ export default function FacebookIntegrationFlow({ onTestLeadRetrieved, onValidat
                       </button>
                     </div>
 
-                    {/* Test lead result inline */}
+                    {/* Test lead result + verification inline */}
                     {testLeadResults[form.id] && (
-                      <div className="px-4 pb-3">
+                      <div className="px-4 pb-3 space-y-2">
                         <TestLeadResultPanel
                           result={testLeadResults[form.id]!}
                           onClose={() => setTestLeadResults((prev) => { const n = { ...prev }; delete n[form.id]; return n; })}
                         />
-                        {/* Validate button — shown after test lead retrieved */}
-                        {onValidate && (
-                          <div className="mt-3 flex items-center gap-3 p-3 bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg">
-                            <CheckCircle2 size={15} className="text-blue-600 flex-shrink-0" />
-                            <p className="text-[12px] text-blue-800 dark:text-blue-300 flex-1">
-                              Test lead verified. Click <strong>Validate</strong> to proceed to Field Mapping.
-                            </p>
-                            <button
-                              onClick={onValidate}
-                              className="flex items-center gap-1.5 h-8 px-4 text-[12px] font-semibold bg-green-600 text-white rounded-lg hover:bg-green-700 active:scale-95 transition-all shadow-sm whitespace-nowrap"
-                            >
-                              Validate &amp; Continue
-                            </button>
-                          </div>
-                        )}
+                        <TestLeadVerifiedPanel />
                       </div>
                     )}
                   </div>

@@ -2,7 +2,6 @@
 
 import React, { useState } from 'react';
 import ERPWizardStepper from './ERPWizardStepper';
-import ERPSelectStep from './ERPSelectStep';
 import ERPAuthStep from './ERPAuthStep';
 import ERPConfigMapStep from './ERPConfigMapStep';
 import ERPScheduleStep, { ScheduleConfig } from './ERPScheduleStep';
@@ -13,7 +12,6 @@ import Link from 'next/link';
 import { ERPId, AuthType, Environment } from './erpRegistry';
 
 const STEP_LABELS = [
-  'Select ERP',
   'Connect & Authenticate',
   'Configure & Map',
   'Schedule',
@@ -25,7 +23,7 @@ export default function ERPWizardContent() {
   const [currentStep, setCurrentStep] = useState(0);
 
   // Step 1
-  const [selectedERP, setSelectedERP] = useState<ERPId | null>(null);
+  const selectedERP: ERPId = 'custom-erp';
 
   // Step 2
   const [authData, setAuthData] = useState<{
@@ -51,19 +49,10 @@ export default function ERPWizardContent() {
   });
 
   const canProceed = () => {
-    if (currentStep === 0) return selectedERP !== null;
-    if (currentStep === 1) return true;
-    if (currentStep === 2) return configuration.mappingCount > 0 || configuration.curlConfigured;
-    if (currentStep === 3) return scheduleConfig !== null && Boolean(scheduleConfig.frequency);
+    if (currentStep === 0) return true;
+    if (currentStep === 1) return configuration.mappingCount > 0 || configuration.curlConfigured;
+    if (currentStep === 2) return scheduleConfig !== null && Boolean(scheduleConfig.frequency);
     return true;
-  };
-
-  const handleERPSelect = (erpId: ERPId) => {
-    setSelectedERP(erpId);
-    setAuthData(null);
-    setStep3Visited(false);
-    // Auto-advance to step 2
-    setTimeout(() => setCurrentStep(1), 150);
   };
 
   const handleAuthValidated = (data: { environment: Environment; authType: AuthType; credentials: Record<string, string> }) => {
@@ -76,7 +65,7 @@ export default function ERPWizardContent() {
   };
 
   const handleNext = () => {
-    if (currentStep === 2 && !step3Visited) setStep3Visited(true);
+    if (currentStep === 1 && !step3Visited) setStep3Visited(true);
     if (canProceed() && currentStep < STEP_LABELS.length - 1) {
       setCurrentStep((s) => s + 1);
     }
@@ -86,8 +75,8 @@ export default function ERPWizardContent() {
     if (currentStep > 0) setCurrentStep((s) => s - 1);
   };
 
-  const isMonitorStep = currentStep === 5;
-  const isSummaryStep = currentStep === 4;
+  const isMonitorStep = currentStep === 4;
+  const isSummaryStep = currentStep === 3;
 
   // For step 2: allow Next if no auth type selected (authData may be null but user can skip)
   const canProceedStep2 = () => {
@@ -103,7 +92,7 @@ export default function ERPWizardContent() {
       // User hasn't selected any auth — treat as no-auth
       handleAuthNoAuth();
     }
-    if (currentStep === 2) setStep3Visited(true);
+    if (currentStep === 1) setStep3Visited(true);
     if (canProceed() && currentStep < STEP_LABELS.length - 1) {
       setCurrentStep((s) => s + 1);
     }
@@ -112,24 +101,17 @@ export default function ERPWizardContent() {
   const renderStep = () => {
     switch (currentStep) {
       case 0:
-        return <ERPSelectStep onSelect={handleERPSelect} />;
+        return <ERPAuthStep erpId={selectedERP} onValidated={handleAuthValidated} />;
       case 1:
-        return selectedERP ? (
-          <ERPAuthStep
-            erpId={selectedERP}
-            onValidated={handleAuthValidated}
-          />
-        ) : null;
+        return <ERPConfigMapStep erpId={selectedERP} onConfigurationChange={setConfiguration} />;
       case 2:
-        return selectedERP ? <ERPConfigMapStep erpId={selectedERP} onConfigurationChange={setConfiguration} /> : null;
-      case 3:
         return (
           <ERPScheduleStep
             onScheduleChange={(cfg) => setScheduleConfig(cfg)}
           />
         );
-      case 4:
-        return selectedERP ? (
+      case 3:
+        return (
           <ERPSummaryStep
             erpId={selectedERP}
             environment={authData?.environment || 'production'}
@@ -142,17 +124,17 @@ export default function ERPWizardContent() {
             defaultValueCount={configuration.defaultValueCount}
             canActivate={Boolean(scheduleConfig?.frequency) && (configuration.mappingCount > 0 || configuration.curlConfigured)}
             onActivate={() => {}}
-            onGoToMonitor={() => setCurrentStep(5)}
+            onGoToMonitor={() => setCurrentStep(4)}
           />
-        ) : null;
-      case 5:
-        return selectedERP ? (
+        );
+      case 4:
+        return (
           <ERPMonitorStep
             erpId={selectedERP}
-            onBack={() => setCurrentStep(4)}
-            onFinish={() => setCurrentStep(5)}
+            onBack={() => setCurrentStep(3)}
+            onFinish={() => setCurrentStep(4)}
           />
-        ) : null;
+        );
       default:
         return null;
     }
@@ -175,7 +157,7 @@ export default function ERPWizardContent() {
               Back to Center
             </button>
           </Link>
-          {currentStep > 0 && currentStep < 4 && (
+          {currentStep < 3 && (
             <button className="flex items-center gap-1.5 h-8 px-3 text-[12px] font-medium bg-card border border-border rounded-lg hover:bg-muted transition-all text-muted-foreground">
               <Save size={13} />
               Save Draft
@@ -193,7 +175,7 @@ export default function ERPWizardContent() {
       </div>
 
       {/* Sticky Navigation */}
-      {!isMonitorStep && !isSummaryStep && currentStep !== 0 && (
+      {!isMonitorStep && !isSummaryStep && (
         <div className="sticky bottom-4 z-10">
           <div className="flex items-center justify-between bg-card/95 backdrop-blur-sm border border-border rounded-2xl px-5 py-3 shadow-lg">
             <button

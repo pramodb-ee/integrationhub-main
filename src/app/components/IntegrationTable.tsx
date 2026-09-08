@@ -505,14 +505,7 @@ export default function IntegrationTable({ integrations, loading, onRefresh, onV
                           </button>
                         </Link>
                         {/* Edit Integration */}
-                        {integration.type === 'tata' && onOpenTata ? <button
-                          onClick={onOpenTata}
-                          className="flex items-center gap-1 h-7 px-2 text-[11px] font-medium rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                          title="Open TATA setup"
-                        >
-                          <Edit2 size={12} />
-                          <span className="hidden xl:block">Setup</span>
-                        </button> : <Link href="/integration-setup-wizard">
+                        <Link href="/integration-setup-wizard">
                           <button
                             className="flex items-center gap-1 h-7 px-2 text-[11px] font-medium rounded-md bg-muted hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors border border-transparent hover:border-primary/20"
                             title="Edit Integration"
@@ -520,18 +513,7 @@ export default function IntegrationTable({ integrations, loading, onRefresh, onV
                             <Edit2 size={12} />
                             <span className="hidden xl:block">Edit</span>
                           </button>
-                        </Link>}
-                        {TELEPHONY_TYPES.includes(integration.type) && (
-                          <Link href={`/integration-setup-wizard?type=${integration.type}`}>
-                            <button
-                              className="flex items-center gap-1 h-7 px-2 text-[11px] font-medium rounded-md bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-                              title="Test Connection"
-                            >
-                              <RefreshCw size={12} />
-                              <span className="hidden xl:block">Test</span>
-                            </button>
-                          </Link>
-                        )}
+                        </Link>
                         {/* Pause / Resume */}
                         <button
                           onClick={(e) => togglePause(integration.id, e)}
@@ -560,9 +542,6 @@ export default function IntegrationTable({ integrations, loading, onRefresh, onV
                                 onClick={() => { setOpenMenu(null); onViewDetails?.(integration); }}
                               >
                                 <Eye size={12} /> View Details
-                              </button>
-                              <button className="flex items-center gap-2 w-full px-3 py-1.5 text-[12px] hover:bg-muted transition-colors">
-                                <RefreshCw size={12} /> Force Resync
                               </button>
                               <hr className="my-1 border-border" />
                               <button

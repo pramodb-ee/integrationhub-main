@@ -48,16 +48,27 @@ export default function PublishStep({ connectorType, integrationName, onPublishe
     }, 2200);
   };
 
+  const isFacebook = connectorType === 'facebook';
+
   if (published) {
     return (
       <div className="flex flex-col items-center justify-center py-12 text-center">
         <div className="w-16 h-16 rounded-full bg-success-bg border-2 border-success flex items-center justify-center mb-4">
           <CheckCircle size={32} className="text-success" />
         </div>
-        <h2 className="text-[20px] font-bold text-foreground mb-2">Integration Published!</h2>
+        <h2 className="text-[20px] font-bold text-foreground mb-2">{isFacebook ? 'Integration is Live!' : 'Integration Published!'}</h2>
         <p className="text-[13px] text-muted-foreground max-w-sm">
-          <span className="font-semibold text-foreground">{integrationName}</span> is now live and accepting data.
-          Redirecting to Monitor...
+          {isFacebook ? (
+            <>
+              <span className="font-semibold text-foreground">{integrationName}</span> is published and actively monitoring.
+              Here&apos;s your integration overview.
+            </>
+          ) : (
+            <>
+              <span className="font-semibold text-foreground">{integrationName}</span> is now live and accepting data.
+              Redirecting to Monitor...
+            </>
+          )}
         </p>
         <div className="flex items-center gap-2 mt-4 text-[12px] text-muted-foreground">
           <Loader2 size={13} className="animate-spin" /> Setting up monitoring...

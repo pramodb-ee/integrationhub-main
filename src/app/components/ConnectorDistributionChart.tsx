@@ -1,9 +1,12 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import {
   BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Cell
 } from 'recharts';
+import { ChevronDown } from 'lucide-react';
+
+const TIME_RANGES = ['Last 1h', 'Last 6h', 'Last 24h', 'Last 7d', 'Last 14d', 'Last 30d'];
 
 const chartData = [
   { name: 'Facebook', events: 3840, color: '#1877F2' },
@@ -33,6 +36,9 @@ const CustomTooltip = ({ active, payload, label }: { active?: boolean; payload?:
 };
 
 export default function ConnectorDistributionChart() {
+  const [range, setRange] = useState('Last 24h');
+  const [isOpen, setIsOpen] = useState(false);
+
   return (
     <div className="card-base p-5 h-full">
       <div className="flex items-center justify-between mb-4">
@@ -40,7 +46,33 @@ export default function ConnectorDistributionChart() {
           <h3 className="text-[14px] font-semibold text-foreground">Events by Connector (24h)</h3>
           <p className="text-[11px] text-muted-foreground mt-0.5">Total events processed per integration type</p>
         </div>
-        <span className="text-[11px] text-muted-foreground bg-muted px-2 py-1 rounded-md">Last 24 hours</span>
+        <div className="relative">
+          <button
+            onClick={() => setIsOpen((open) => !open)}
+            className="flex items-center gap-1 text-[11px] font-medium text-muted-foreground bg-muted hover:bg-primary/10 hover:text-primary transition-colors px-2 py-1 rounded-md border border-transparent hover:border-primary/20"
+          >
+            {range}
+            <ChevronDown size={12} />
+          </button>
+          {isOpen && (
+            <>
+              <div className="fixed inset-0 z-10" onClick={() => setIsOpen(false)} />
+              <div className="absolute right-0 top-8 z-20 w-32 bg-card rounded-lg shadow-lg border border-border py-1">
+                {TIME_RANGES.map((option) => (
+                  <button
+                    key={option}
+                    onClick={() => { setRange(option); setIsOpen(false); }}
+                    className={`flex items-center w-full px-3 py-1.5 text-[12px] hover:bg-muted transition-colors ${
+                      option === range ? 'text-primary font-semibold' : 'text-foreground'
+                    }`}
+                  >
+                    {option}
+                  </button>
+                ))}
+              </div>
+            </>
+          )}
+        </div>
       </div>
       <ResponsiveContainer width="100%" height={220}>
         <BarChart data={chartData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>

@@ -2,12 +2,11 @@ import React from 'react';
 import { Check } from 'lucide-react';
 
 const ERP_STEPS = [
-  { id: 'step-1', label: 'Select ERP', description: 'Choose system' },
-  { id: 'step-2', label: 'Authenticate', description: 'Connect & validate' },
-  { id: 'step-3', label: 'Configure & Map', description: 'CURL + field mapping' },
-  { id: 'step-4', label: 'Schedule', description: 'Sync frequency' },
-  { id: 'step-5', label: 'Summary', description: 'Review & activate' },
-  { id: 'step-6', label: 'Monitor', description: 'Track health' },
+  { id: 'step-1', label: 'Authenticate', description: 'Connect & validate' },
+  { id: 'step-2', label: 'Configure & Map', description: 'CURL + field mapping' },
+  { id: 'step-3', label: 'Schedule', description: 'Sync frequency' },
+  { id: 'step-4', label: 'Summary', description: 'Review & activate' },
+  { id: 'step-5', label: 'Monitor', description: 'Track health' },
 ];
 
 interface ERPWizardStepperProps {

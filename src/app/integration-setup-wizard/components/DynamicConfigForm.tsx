@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { ConnectorType, getConnectorLabel } from '@/components/ui/ConnectorIcon';
 import ConnectorIcon from '@/components/ui/ConnectorIcon';
-import { AlertCircle, Info, ChevronDown, ChevronUp, Shield, Webhook, Zap, Settings, Database, Activity, Plus, Copy } from 'lucide-react';
+import { AlertCircle, Info, ChevronDown, ChevronUp, Shield, Webhook, Zap, Settings, Database, Activity, Plus, Copy, CheckCircle2, Lock, ExternalLink } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
 import TataOutboundUserManagement from './TataOutboundUserManagement';
 
@@ -13,6 +13,7 @@ interface DynamicConfigFormProps {
   onSubmit: (data: Record<string, string>) => void;
   integrationName: string;
   onNameChange: (name: string) => void;
+  onOutboundTestCallSuccess?: () => void;
 }
 
 type FormField = {
@@ -25,25 +26,54 @@ type FormField = {
   options?: { value: string; label: string }[];
 };
 
-const TATA_OUTBOUND_FIELDS = [
-  ['userId', 'UserId', 'Enter user ID'], ['agentId', 'AgentId', 'Enter agent ID'], ['campaignName', 'CampaignName', 'Enter campaign name'], ['userName', 'UserName', 'Enter user name'],
-  ['isActive', 'IsActive', 'true or false'], ['setting', 'Setting', 'Enter setting'], ['mapping', 'Mapping', 'Enter mapping details'], ['httpClientHeaders', 'HttpClientHeaders', 'e.g. Content-Type: application/json'],
-  ['httpMethod', 'HttpMethod', 'e.g. POST'], ['countryCode', 'CountryCode', 'e.g. +91'], ['orderid', 'orderid', 'Enter order ID'], ['retrydelta', 'retrydelta', 'Enter retry delay'],
-  ['callretries', 'callretries', 'Enter retry count'], ['baseurl', 'Baseurl', 'https://api.example.com'],
-] as const;
+// Default Login URL per connector — used to pre-fill the Inbound "Connect" flow.
+const LOGIN_URL_DEFAULTS: Record<string, string> = {
+  tata: 'https://cloudphone.tatateleservices.com/login',
+};
 
-function TATADynamicSetup({ onSubmit, integrationName, onNameChange }: { onSubmit: (data: Record<string, string>) => void; integrationName: string; onNameChange: (name: string) => void }) {
+function TATADynamicSetup({ onSubmit, integrationName, onNameChange, onOutboundTestCallSuccess }: { onSubmit: (data: Record<string, string>) => void; integrationName: string; onNameChange: (name: string) => void; onOutboundTestCallSuccess?: () => void }) {
   const [direction, setDirection] = useState<'Inbound' | 'Outbound'>('Inbound');
   const [isExtension, setIsExtension] = useState(false);
   const [activeStatus, setActiveStatus] = useState<'Active' | 'Inactive'>('Inactive');
   const [values, setValues] = useState<Record<string, string>>({ empId: '081818881818' });
-  const update = (key: string, value: string) => setValues((previous) => ({ ...previous, [key]: value }));
+  const [nameTouched, setNameTouched] = useState(false);
+  const [loginUrl, setLoginUrl] = useState(LOGIN_URL_DEFAULTS.tata);
+  const [loginId, setLoginId] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginPopupOpen, setLoginPopupOpen] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connected'>('idle');
   const textClass = 'w-full h-9 px-3 text-[13px] bg-card rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all';
   const labelClass = 'block text-[12px] font-semibold text-foreground mb-1';
+  const nameInvalid = nameTouched && !integrationName.trim();
+
+  const handleLoggedIn = () => {
+    setLoginPopupOpen(false);
+    setConnectionStatus('connected');
+  };
 
   return (
-    <form onSubmit={(event) => { event.preventDefault(); onSubmit({ ...values, isActive: activeStatus, integrationName, integrationDirection: direction, isExtension: String(isExtension) }); }} className="space-y-5">
-      <label className="block"><span className="block text-[12px] font-semibold text-foreground mb-1">Integration Name <span className="text-danger">*</span></span><span className="block text-[11px] text-muted-foreground mb-1.5">A descriptive name to identify this integration in the center</span><input required value={integrationName} onChange={(event) => onNameChange(event.target.value)} placeholder="e.g. TATA - Main IVR" className={textClass} /></label>
+    <form onSubmit={(event) => {
+      event.preventDefault();
+      if (!integrationName.trim()) { setNameTouched(true); return; }
+      onSubmit({ ...values, isActive: activeStatus, integrationName, integrationDirection: direction, isExtension: String(isExtension), loginId, connectionStatus });
+    }} className="space-y-5">
+      <label className="block">
+        <span className="block text-[12px] font-semibold text-foreground mb-1">Integration Name <span className="text-danger">*</span></span>
+        <span className="block text-[11px] text-muted-foreground mb-1.5">A descriptive name to identify this integration in the center</span>
+        <input
+          required
+          value={integrationName}
+          onChange={(event) => { onNameChange(event.target.value); if (nameTouched) setNameTouched(false); }}
+          onBlur={() => setNameTouched(true)}
+          placeholder="e.g. TATA - Main IVR"
+          className={`${textClass} ${nameInvalid ? 'border-danger focus:ring-2 focus:ring-danger/20 focus:border-danger' : ''}`}
+        />
+        {nameInvalid && (
+          <p className="flex items-center gap-1 text-[11px] text-danger mt-1.5">
+            <AlertCircle size={12} /> Integration Name is required.
+          </p>
+        )}
+      </label>
       <div className="flex items-center gap-3"><span className="h-px flex-1 bg-border" /><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">TATA Settings</span><span className="h-px flex-1 bg-border" /></div>
       <div className="flex items-center justify-between gap-4 p-4 rounded-xl border border-border bg-muted/30">
         <div>
@@ -57,23 +87,79 @@ function TATADynamicSetup({ onSubmit, integrationName, onNameChange }: { onSubmi
         </div>
       </div>
 
-      {direction === 'Outbound' && <><TataOutboundUserManagement /><div className="hidden">
-        <div className="space-y-4">
-          <div className="flex items-center gap-2"><span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Outbound Configuration</span><span className="h-px flex-1 bg-border" /></div>
+      {direction === 'Inbound' && (
+        <div className="space-y-4 p-4 rounded-xl border border-border bg-muted/20">
+          <div className="flex items-center gap-2"><span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wide">Inbound Configuration</span><span className="h-px flex-1 bg-border" /></div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {TATA_OUTBOUND_FIELDS.map(([key, fieldLabel, placeholder]) => key === 'isActive' ? (
-              <div key={key} className="block"><span className={labelClass}>{fieldLabel}</span><div className="inline-flex rounded-lg border border-border bg-card p-0.5"><button type="button" onClick={() => setActiveStatus('Active')} className={`h-8 px-4 text-[11px] font-semibold rounded-md ${activeStatus === 'Active' ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-muted'}`}>Active</button><button type="button" onClick={() => setActiveStatus('Inactive')} className={`h-8 px-4 text-[11px] font-semibold rounded-md ${activeStatus === 'Inactive' ? 'bg-primary text-white' : 'text-muted-foreground hover:bg-muted'}`}>Inactive</button></div></div>
-            ) : (
-              <label key={key} className="block"><span className={labelClass}>{fieldLabel}</span><input value={values[key] || ''} onChange={(event) => update(key, event.target.value)} placeholder={placeholder} className={textClass} /></label>
-            ))}
+            <label className="block md:col-span-2">
+              <span className={labelClass}>Login URL</span>
+              <input value={loginUrl} onChange={(event) => { setLoginUrl(event.target.value); setConnectionStatus('idle'); }} placeholder="https://provider.example.com/login" className={textClass} />
+            </label>
+            <label className="block">
+              <span className={labelClass}>Login Id</span>
+              <input value={loginId} onChange={(event) => { setLoginId(event.target.value); setConnectionStatus('idle'); }} placeholder="Enter login ID" className={textClass} />
+            </label>
+            <label className="block">
+              <span className={labelClass}>Password</span>
+              <input type="password" value={password} onChange={(event) => { setPassword(event.target.value); setConnectionStatus('idle'); }} placeholder="Enter password" className={textClass} />
+            </label>
           </div>
-          <div className="flex items-center justify-between gap-4 p-4 rounded-xl border border-border bg-muted/20">
-            <div><p className="text-[12px] font-semibold text-foreground">IS Extension</p><p className="text-[11px] text-muted-foreground mt-0.5">Create an employee extension for outbound calls.</p></div>
-            <div className="inline-flex rounded-lg border border-border bg-card p-0.5"><button type="button" onClick={() => setIsExtension(false)} className={`h-7 px-3 text-[11px] font-semibold rounded-md ${!isExtension ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}>NO</button><button type="button" onClick={() => setIsExtension(true)} className={`h-7 px-3 text-[11px] font-semibold rounded-md ${isExtension ? 'bg-primary text-white shadow-sm' : 'text-muted-foreground'}`}>YES</button></div>
+          <div className="flex items-center gap-3">
+            <button
+              type="button"
+              onClick={() => setLoginPopupOpen(true)}
+              disabled={!loginUrl.trim()}
+              className="flex items-center gap-2 h-9 px-4 text-[12px] font-semibold bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              <Zap size={13} /> Connect
+            </button>
+            {connectionStatus === 'connected' && (
+              <span className="flex items-center gap-1.5 text-[12px] font-semibold text-success">
+                <CheckCircle2 size={14} /> Connected
+              </span>
+            )}
           </div>
-          {isExtension && <label className="block max-w-sm"><span className={labelClass}>EmpId</span><input value={values.empId || '081818881818'} onChange={(event) => update('empId', event.target.value)} placeholder="081818881818" className={textClass} /></label>}
         </div>
-      </div></>}
+      )}
+
+      {/* Kept mounted (just hidden) so the outbound user list survives switching direction back and forth. */}
+      <div className={direction === 'Outbound' ? '' : 'hidden'}>
+        <TataOutboundUserManagement onTestCallSuccess={onOutboundTestCallSuccess} />
+      </div>
+
+      <Modal
+        open={loginPopupOpen}
+        onClose={() => setLoginPopupOpen(false)}
+        title="Connect to TATA"
+        subtitle="Sign in with your TATA Cloud Phone credentials"
+        size="2xl"
+        footer={
+          <div className="flex items-center justify-between w-full gap-3">
+            <a href={loginUrl} target="_blank" rel="noopener noreferrer" className="flex items-center gap-1.5 text-[12px] text-muted-foreground hover:text-primary transition-colors">
+              <ExternalLink size={13} /> Open in new tab
+            </a>
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setLoginPopupOpen(false)} className="h-8 px-3 text-[12px] font-medium border border-border rounded-lg hover:bg-muted">Cancel</button>
+              <button type="button" onClick={handleLoggedIn} className="h-8 px-4 text-[12px] font-semibold bg-primary text-white rounded-lg hover:bg-primary/90">I&apos;ve Logged In</button>
+            </div>
+          </div>
+        }
+      >
+        <div className="space-y-3">
+          <div className="flex items-center gap-2 h-9 px-3 rounded-lg border border-border bg-muted/40 text-[12px] text-muted-foreground">
+            <Lock size={12} className="text-success flex-shrink-0" />
+            <span className="truncate font-tabular">{loginUrl}</span>
+          </div>
+          <div className="rounded-lg border border-border overflow-hidden bg-white" style={{ height: 420 }}>
+            <iframe src={loginUrl} title="TATA Login" className="w-full h-full border-0" />
+          </div>
+          <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
+            <Info size={12} className="flex-shrink-0 mt-0.5" />
+            If the login page doesn&apos;t load here because of the provider&apos;s security settings, use &ldquo;Open in new tab&rdquo; below, sign in there, then come back and click &ldquo;I&apos;ve Logged In&rdquo;.
+          </p>
+        </div>
+      </Modal>
+
       <input type="submit" className="hidden" id="config-form-submit" />
     </form>
   );
@@ -329,11 +415,11 @@ function ArchitecturePanel({ connectorType }: { connectorType: ConnectorType }) 
   );
 }
 
-export default function DynamicConfigForm({ connectorType, onSubmit, integrationName, onNameChange }: DynamicConfigFormProps) {
+export default function DynamicConfigForm({ connectorType, onSubmit, integrationName, onNameChange, onOutboundTestCallSuccess }: DynamicConfigFormProps) {
   const { register, handleSubmit, formState: { errors } } = useForm<Record<string, string>>();
   const fields = connectorFields[connectorType] ?? [];
 
-  if (connectorType === 'tata') {
+  if (connectorType === 'tata' || connectorType === 'ivr-custom') {
     return (
       <div>
         <div className="flex items-center gap-3 mb-5 p-3 bg-muted/50 rounded-lg border border-border">
@@ -343,7 +429,7 @@ export default function DynamicConfigForm({ connectorType, onSubmit, integration
             <p className="text-[11px] text-muted-foreground">Fill in the required credentials and settings below</p>
           </div>
         </div>
-        <TATADynamicSetup onSubmit={onSubmit} integrationName={integrationName} onNameChange={onNameChange} />
+        <TATADynamicSetup onSubmit={onSubmit} integrationName={integrationName} onNameChange={onNameChange} onOutboundTestCallSuccess={onOutboundTestCallSuccess} />
       </div>
     );
   }

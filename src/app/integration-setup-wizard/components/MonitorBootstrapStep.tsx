@@ -23,7 +23,7 @@ interface AlertConfigModalProps {
   integrationName: string;
 }
 
-function AlertConfigModal({ open, onClose, integrationName }: AlertConfigModalProps) {
+export function AlertConfigModal({ open, onClose, integrationName }: AlertConfigModalProps) {
   const [emailEnabled, setEmailEnabled] = useState(false);
   const [slackEnabled, setSlackEnabled] = useState(false);
   const [email, setEmail] = useState('');

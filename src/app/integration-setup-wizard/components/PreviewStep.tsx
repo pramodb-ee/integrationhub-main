@@ -174,9 +174,10 @@ interface PreviewStepProps {
   integrationName: string;
   onWebhookConfigured?: (configured: boolean) => void;
   webhookConfigured?: boolean;
+  onValidationChange?: (validated: boolean) => void;
 }
 
-export default function PreviewStep({ connectorType, integrationName, onWebhookConfigured, webhookConfigured = false }: PreviewStepProps) {
+export default function PreviewStep({ connectorType, integrationName, onWebhookConfigured, webhookConfigured = false, onValidationChange }: PreviewStepProps) {
   const [view, setView] = useState<'formatted' | 'raw'>('formatted');
   const [copied, setCopied] = useState(false);
   const [webhookUrlCopied, setWebhookUrlCopied] = useState(false);
@@ -186,6 +187,7 @@ export default function PreviewStep({ connectorType, integrationName, onWebhookC
   const [testLeadLoading, setTestLeadLoading] = useState(false);
   const [testLeadResult, setTestLeadResult] = useState<'idle' | 'success' | 'failure'>('idle');
   const [testLeadError, setTestLeadError] = useState('');
+  const [testLeadResponse, setTestLeadResponse] = useState<Record<string, unknown> | null>(null);
 
   const isIVR = IVR_CONNECTORS.includes(connectorType);
   const webhookUrl = isIVR ? generateWebhookUrl(connectorType, integrationName) : '';
@@ -222,15 +224,27 @@ export default function PreviewStep({ connectorType, integrationName, onWebhookC
     setTestLeadLoading(true);
     setTestLeadResult('idle');
     setTestLeadError('');
+    setTestLeadResponse(null);
+    onValidationChange?.(false);
     setTimeout(() => {
       setTestLeadLoading(false);
       // Simulate: success for most connectors, failure demo for specific cases
       const success = Math.random() > 0.25;
       if (success) {
         setTestLeadResult('success');
+        setTestLeadResponse({
+          status: 'success',
+          statusCode: 200,
+          leadId: `lead_${Math.random().toString(36).slice(2, 8)}`,
+          crmRecordId: `CRM-${Math.floor(Math.random() * 90000 + 10000)}`,
+          syncedAt: new Date().toISOString(),
+          fields: payload,
+        });
+        onValidationChange?.(true);
       } else {
         setTestLeadResult('failure');
         setTestLeadError('Validation failed: Required fields (Email, Mobile Number) could not be verified. Please check your field mapping and try again.');
+        onValidationChange?.(false);
       }
     }, 1800);
   };
@@ -485,12 +499,25 @@ export default function PreviewStep({ connectorType, integrationName, onWebhookC
         </div>
 
         {testLeadResult === 'success' && (
-          <div className="flex items-center gap-3 p-3 rounded-lg bg-success-bg border border-success-border">
-            <CheckCircle size={18} className="text-success flex-shrink-0" />
-            <div>
-              <p className="text-[13px] font-semibold text-success">Lead Fetch Successfully</p>
-              <p className="text-[11px] text-success/80 mt-0.5">End-to-end validation passed. Your integration is ready to publish.</p>
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-success-bg border border-success-border">
+              <CheckCircle size={18} className="text-success flex-shrink-0" />
+              <div>
+                <p className="text-[13px] font-semibold text-success">Lead Fetch Successfully</p>
+                <p className="text-[11px] text-success/80 mt-0.5">End-to-end validation passed. Your integration is ready to publish.</p>
+              </div>
             </div>
+            {testLeadResponse && (
+              <div className="rounded-lg border border-border bg-slate-950 overflow-hidden">
+                <div className="flex items-center justify-between px-4 py-2 border-b border-slate-800">
+                  <span className="text-[11px] text-slate-400 font-mono">Response Payload</span>
+                  <span className="text-[10px] font-semibold text-success bg-success/10 px-2 py-0.5 rounded-full">{String(testLeadResponse.statusCode)} OK</span>
+                </div>
+                <pre className="p-4 text-[12px] font-mono text-slate-300 overflow-x-auto leading-relaxed">
+                  {JSON.stringify(testLeadResponse, null, 2)}
+                </pre>
+              </div>
+            )}
           </div>
         )}
 
