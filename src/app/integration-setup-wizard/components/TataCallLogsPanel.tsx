@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
   Copy, Download, PhoneCall, PhoneIncoming, PhoneMissed, RefreshCw, Search, X,
@@ -63,15 +63,26 @@ export default function TataCallLogsPanel({ open, onClose, user }: TataCallLogsP
   const [search, setSearch] = useState('');
   const [refreshing, setRefreshing] = useState(false);
   const [bump, setBump] = useState(0);
+  const [dateRange, setDateRange] = useState<'today' | '7days' | '30days' | 'all'>('7days');
 
   const logs = useMemo(
     () => buildCallLogs(user ? `${user.name}-${user.mobile}` : 'all-outbound-users', user ? 10 : 18),
     [user, bump]
   );
-  const filtered = useMemo(
-    () => logs.filter((row) => row.id.toLowerCase().includes(search.toLowerCase()) || row.agent.toLowerCase().includes(search.toLowerCase())),
-    [logs, search]
-  );
+  const filtered = useMemo(() => {
+    const now = Date.now();
+    const rangeMs = dateRange === 'today' ? 24 * 60 * 60 * 1000 : dateRange === '7days' ? 7 * 24 * 60 * 60 * 1000 : dateRange === '30days' ? 30 * 24 * 60 * 60 * 1000 : Infinity;
+    const query = search.trim().toLowerCase();
+    return logs.filter((row) => {
+      const matchesSearch = !query || row.id.toLowerCase().includes(query) || row.agent.toLowerCase().includes(query) || row.solution.toLowerCase().includes(query);
+      const timestamp = new Date(row.time).getTime();
+      return matchesSearch && now - timestamp <= rangeMs;
+    });
+  }, [logs, search, dateRange]);
+
+  useEffect(() => {
+    if (open) { setSearch(''); setDateRange('7days'); }
+  }, [open, user]);
 
   if (!open) return null;
 
@@ -82,6 +93,21 @@ export default function TataCallLogsPanel({ open, onClose, user }: TataCallLogsP
       setBump((b) => b + 1);
       toast.success('Call logs refreshed');
     }, 600);
+  };
+
+  const handleExport = () => {
+    const escapeCell = (value: string) => `"${value.replace(/"/g, '""')}"`;
+    const rows = filtered.map((row) => [row.id, row.solution, row.connected ? 'Connected' : 'Missed', row.time, row.duration, row.agent].map((value) => escapeCell(String(value))).join(','));
+    const csv = [['Call ID', 'Type', 'Status', 'Time', 'Duration', 'Agent'].map(escapeCell).join(','), ...rows].join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${user ? user.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') : 'all-users'}-call-logs.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    toast.success(`${filtered.length} call log${filtered.length === 1 ? '' : 's'} exported`);
   };
 
   return (
@@ -115,8 +141,17 @@ export default function TataCallLogsPanel({ open, onClose, user }: TataCallLogsP
                 className="h-9 pl-8 pr-3 w-56 text-[12px] bg-card rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
               />
             </div>
+            <label className="flex items-center gap-2 text-[11px] font-semibold text-muted-foreground">
+              Date
+              <select aria-label="Date filter" value={dateRange} onChange={(event) => setDateRange(event.target.value as typeof dateRange)} className="h-9 px-3 text-[12px] bg-card rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-primary/30">
+                <option value="today">Today</option>
+                <option value="7days">Last 7 Days</option>
+                <option value="30days">Last 30 Days</option>
+                <option value="all">All Time</option>
+              </select>
+            </label>
             <div className="flex items-center gap-1.5 ml-auto">
-              <button type="button" onClick={() => toast.success('Call logs exported')} className="flex items-center gap-1.5 h-9 px-3 text-[12px] font-medium bg-card border border-border rounded-md hover:bg-muted transition-colors">
+              <button type="button" onClick={handleExport} className="flex items-center gap-1.5 h-9 px-3 text-[12px] font-medium bg-card border border-border rounded-md hover:bg-muted transition-colors">
                 <Download size={13} />Export
               </button>
               <button type="button" onClick={handleRefresh} className="flex items-center gap-1.5 h-9 px-3 text-[12px] font-medium bg-card border border-border rounded-md hover:bg-muted transition-colors">

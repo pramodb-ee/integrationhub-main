@@ -1,13 +1,15 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import WizardStepper from './WizardStepper';
 import ConnectorSelectStep from './ConnectorSelectStep';
 import DynamicConfigForm from './DynamicConfigForm';
 import ConnectionTestStep from './ConnectionTestStep';
-import FieldMappingStep from './FieldMappingStep';
+import FieldMappingStep, { ApiMappingState } from './FieldMappingStep';
+import ApiPreviewStep from './ApiPreviewStep';
+import { cappingError, mappedPayload, mappingErrors, CapturedRequest } from './apiMapping';
 import PreviewStep from './PreviewStep';
 import PublishStep from './PublishStep';
 import MonitorBootstrapStep from './MonitorBootstrapStep';
@@ -15,8 +17,10 @@ import FacebookIntegrationFlow from './FacebookIntegrationFlow';
 import FacebookMonitorStep from './FacebookMonitorStep';
 import TelephonySummaryStep from './TelephonySummaryStep';
 import TataMonitorStep from './TataMonitorStep';
-import ApiIntegrationListStep, { ApiIntegration } from './ApiIntegrationListStep';
+import ApiIntegrationListStep, { ApiIntegration, SEED_INTEGRATIONS } from './ApiIntegrationListStep';
 import ApiTestRequestStep from './ApiTestRequestStep';
+import GoogleAdsIntegrationFlow from './GoogleAdsIntegrationFlow';
+import GoogleFormsIntegrationFlow from './GoogleFormsIntegrationFlow';
 import { ConnectorType } from '@/components/ui/ConnectorIcon';
 import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
 
@@ -48,11 +52,28 @@ export default function SetupWizardContent() {
   const [facebookPayloadValidated, setFacebookPayloadValidated] = useState(false);
   const [tataTestCallSucceeded, setTataTestCallSucceeded] = useState(false);
   const [apiTestRequestMapped, setApiTestRequestMapped] = useState(false);
+  const [apiIntegrations, setApiIntegrations] = useState<ApiIntegration[]>(SEED_INTEGRATIONS);
+  const [isNewApiIntegration, setIsNewApiIntegration] = useState(false);
+  const [apiIntegrationId, setApiIntegrationId] = useState('');
+  const [apiPayload, setApiPayload] = useState<Record<string, unknown>>({});
+  const [apiMapping, setApiMapping] = useState<ApiMappingState>();
+  const [apiVerified, setApiVerified] = useState(false);
+  const capturedRequests = useRef<Record<string, CapturedRequest[]>>({});
+  const updateApiMapping = useCallback((state: ApiMappingState) => {
+    setApiMapping(state);
+    setApiVerified(false);
+  }, []);
+  const checkApiCapture = (payload: Record<string, unknown>) => cappingError(apiMapping?.capping, payload, capturedRequests.current[apiIntegrationId] ?? []);
+  const recordApiCapture = (payload: Record<string, unknown>) => {
+    const now = Date.now();
+    capturedRequests.current[apiIntegrationId] = [...(capturedRequests.current[apiIntegrationId] ?? []).filter((item) => item.timestamp > now - 24 * 3600000), { timestamp: now, payload }];
+  };
 
   const isTelephony = selectedConnector !== null && TELEPHONY_CONNECTORS.includes(selectedConnector);
   const isTata = selectedConnector === 'tata' || selectedConnector === 'ivr-custom';
   const isFacebook = selectedConnector === 'facebook';
   const isApi = selectedConnector === 'api';
+  const isGoogleAds = selectedConnector === 'google-ads';
   const labels = isTata ? TATA_LABELS : isTelephony ? TELEPHONY_LABELS : isFacebook ? FACEBOOK_LABELS : isApi ? API_LABELS : STANDARD_LABELS;
   const isMonitorStep = isTata ? currentStep === 2 : isTelephony ? currentStep === 5 : isFacebook ? currentStep === 4 : isApi ? currentStep === 5 : currentStep === 6;
   const isLastStep = isTata ? false : isTelephony ? currentStep === 4 : isFacebook ? currentStep === 3 : isApi ? currentStep === 4 : currentStep === 5;
@@ -78,8 +99,10 @@ export default function SetupWizardContent() {
     }
     if (isApi) {
       // Step 1 (Test Request) can't advance until field mappings have been created from a test request.
-      // (Step 0 has no bottom Next button — advancing happens only via an integration's View Details action.)
+      // Step 0 advances after saving a new integration or opening View Details.
       if (currentStep === 1) return apiTestRequestMapped;
+      if (currentStep === 2) return !!apiMapping && mappingErrors(apiMapping, apiPayload).length === 0;
+      if (currentStep === 3) return apiVerified;
       return true;
     }
     if (currentStep === 0) return selectedConnector !== null;
@@ -106,7 +129,7 @@ export default function SetupWizardContent() {
       if (currentStep === 1 && selectedConnector) return <DynamicConfigForm connectorType={selectedConnector} onSubmit={handleConfigSubmit} integrationName={integrationName} onNameChange={setIntegrationName} onOutboundTestCallSuccess={() => setTataTestCallSucceeded(true)} />;
       if (isTata && currentStep === 2) {
         // Call Logs is reached from here via a side panel (per-user in User Management, or "View Call Logs" on this screen) — not a separate step.
-        return <TataMonitorStep integrationName={integrationName || 'TATA IVR Integration'} />;
+        return <TataMonitorStep integrationName={integrationName} connectorType={selectedConnector ?? 'tata'} onBack={() => setCurrentStep(1)} />;
       }
       if (currentStep === 2 && selectedConnector) return <ConnectionTestStep connectorType={selectedConnector} integrationName={integrationName || `${selectedConnector} Integration`} onTestComplete={setTestPassed} />;
       if (currentStep === 3 && selectedConnector) return <TelephonySummaryStep connectorType={selectedConnector} integrationName={integrationName || `${selectedConnector} Integration`} config={configData} testPassed={testPassed} />;
@@ -127,14 +150,26 @@ export default function SetupWizardContent() {
 
     if (isApi) {
       // Step 0 = API Configuration (integrations table + Add New Integration side panel), Step 1 = Test Request, etc.
-      // Saving a new integration only adds it to the table — View Details on any row is what jumps to Step 1 (Test Request).
-      if (currentStep === 0) return <ApiIntegrationListStep onViewDetails={(integration: ApiIntegration) => { setIntegrationName(integration.name); setCurrentStep(1); }} />;
-      if (currentStep === 1) return <ApiTestRequestStep integrationName={integrationName || 'API Integration'} onFieldMappingCreated={() => { setApiTestRequestMapped(true); setCurrentStep(2); }} />;
-      if (currentStep === 2) return <FieldMappingStep connectorType="api" />;
-      if (currentStep === 3) return <PreviewStep connectorType="api" integrationName={integrationName || 'API Integration'} webhookConfigured={webhookConfigured} onWebhookConfigured={setWebhookConfigured} />;
-      if (currentStep === 4) return <PublishStep connectorType="api" integrationName={integrationName || 'API Integration'} onPublished={() => setCurrentStep(5)} webhookConfigured={webhookConfigured} onGoToPreview={() => setCurrentStep(3)} />;
-      if (currentStep === 5) return <MonitorBootstrapStep connectorType="api" integrationName={integrationName || 'API Integration'} />;
-      return null;
+      // Saving a new integration and View Details both open Step 1 (Test Request).
+      return <>
+        {currentStep === 0 && <ApiIntegrationListStep integrations={apiIntegrations} setIntegrations={setApiIntegrations} onViewDetails={(integration: ApiIntegration) => {
+          setIntegrationName(integration.name);
+          setIsNewApiIntegration(!SEED_INTEGRATIONS.some((item) => item.id === integration.id));
+          if (apiIntegrationId !== integration.id) { setApiMapping(undefined); setApiPayload({}); setApiVerified(false); setApiTestRequestMapped(false); }
+          setApiIntegrationId(integration.id);
+          setCurrentStep(1);
+        }} />}
+        {apiIntegrationId && <div hidden={currentStep !== 1}><ApiTestRequestStep key={apiIntegrationId} integrationName={integrationName || 'API Integration'} isNewIntegration={isNewApiIntegration} onCaptureRequest={(payload) => {
+          const output = apiMapping ? mappedPayload(payload, apiMapping) : payload;
+          const error = checkApiCapture(output);
+          if (!error) recordApiCapture(output);
+          return error;
+        }} onFieldMappingCreated={(payload) => { setApiPayload(payload); setApiMapping(undefined); setApiVerified(false); setApiTestRequestMapped(true); setCurrentStep(2); }} /></div>}
+        {currentStep === 2 && <FieldMappingStep connectorType="api" requestPayload={apiPayload} initialState={apiMapping} onStateChange={updateApiMapping} />}
+        {currentStep === 3 && apiMapping && <ApiPreviewStep integrationId={apiIntegrationId} integrationName={integrationName || 'API Integration'} payload={apiPayload} mapping={apiMapping} onValidationChange={setApiVerified} checkCapture={checkApiCapture} recordCapture={recordApiCapture} />}
+        {currentStep === 4 && <PublishStep connectorType="api" integrationName={integrationName || 'API Integration'} onPublished={() => setCurrentStep(5)} webhookConfigured={webhookConfigured} onGoToPreview={() => setCurrentStep(3)} />}
+        {currentStep === 5 && <MonitorBootstrapStep connectorType="api" integrationName={integrationName || 'API Integration'} />}
+      </>;
     }
 
     switch (currentStep) {
@@ -153,6 +188,9 @@ export default function SetupWizardContent() {
     if (canProceed() && currentStep < (isTata ? 2 : isTelephony ? 5 : isFacebook ? 4 : isApi ? 5 : 6)) setCurrentStep((step) => step + 1);
   };
 
+  if (selectedConnector === 'google-forms') return <GoogleFormsIntegrationFlow />;
+  if (isGoogleAds) return <GoogleAdsIntegrationFlow />;
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
@@ -170,7 +208,7 @@ export default function SetupWizardContent() {
               <ChevronLeft size={13} />Back to Center
             </button>
           </Link>
-          {currentStep > 0 && !isMonitorStep && (
+          {currentStep > 0 && !isMonitorStep && !isTata && (
             <button className="flex items-center gap-1.5 h-8 px-3 text-[12px] font-medium bg-card border border-border rounded-md hover:bg-muted transition-all text-muted-foreground">
               <Save size={13} />Save Draft
             </button>
@@ -200,7 +238,6 @@ export default function SetupWizardContent() {
               {!tataTestCallSucceeded && (
                 <span className="text-[11px] text-muted-foreground">Run a successful Test Call to continue</span>
               )}
-              <button onClick={() => setConfigSubmitted(true)} className="px-5 py-2 text-[13px] font-semibold bg-card border border-border rounded-lg hover:bg-muted">Save</button>
               <button
                 onClick={() => document.getElementById('config-form-submit')?.click()}
                 disabled={!tataTestCallSucceeded}
@@ -214,8 +251,8 @@ export default function SetupWizardContent() {
             <button onClick={() => document.getElementById('config-form-submit')?.click()} className="flex items-center gap-2 px-5 py-2 text-[13px] font-semibold bg-primary text-white rounded-lg hover:bg-primary/90">
               <span>{isTelephony ? 'Save & Continue' : 'Save & Test'}</span><ChevronRight size={14} />
             </button>
-          ) : isApi && currentStep === 0 ? (
-            // No bottom Next here — advancing to Test Request happens only via an integration's View Details action.
+          ) : isApi && currentStep <= 1 ? (
+            // API configuration and test requests advance through their own actions.
             <div className="w-32" />
           ) : isLastStep ? (
             <div className="w-32" />

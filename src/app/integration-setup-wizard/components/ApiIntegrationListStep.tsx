@@ -21,7 +21,7 @@ const INTEGRATION_TYPE_OPTIONS = [
   'API', 'Publisher', 'Webhook', 'Shiksha', 'Career360', 'CollegeDekho', 'CollegeDisha', 'CollegeSearch', 'Collegedunia',
 ];
 
-const SEED_INTEGRATIONS: ApiIntegration[] = [
+export const SEED_INTEGRATIONS: ApiIntegration[] = [
   { id: 'INT-1001', name: 'Shiksha Lead API', type: 'Shiksha', description: 'Pulls inquiry leads from Shiksha listings', status: 'Active', createdBy: 'Priya Sharma', createdOn: '12 Aug 2026', updatedOn: '02 Sep 2026' },
   { id: 'INT-1002', name: 'Career360 Webhook', type: 'Career360', description: 'Receives real-time lead webhooks from Career360', status: 'Active', createdBy: 'Rahul Verma', createdOn: '05 Jul 2026', updatedOn: '30 Aug 2026' },
   { id: 'INT-1003', name: 'CollegeDekho Publisher Feed', type: 'CollegeDekho', description: 'Publisher API feed for CollegeDekho enquiries', status: 'Inactive', createdBy: 'Kavya Iyer', createdOn: '18 Jun 2026', updatedOn: '18 Jun 2026' },
@@ -34,11 +34,12 @@ function todayLabel() {
 }
 
 interface ApiIntegrationListStepProps {
+  integrations: ApiIntegration[];
+  setIntegrations: React.Dispatch<React.SetStateAction<ApiIntegration[]>>;
   onViewDetails: (integration: ApiIntegration) => void;
 }
 
-export default function ApiIntegrationListStep({ onViewDetails }: ApiIntegrationListStepProps) {
-  const [integrations, setIntegrations] = useState<ApiIntegration[]>(SEED_INTEGRATIONS);
+export default function ApiIntegrationListStep({ integrations, setIntegrations, onViewDetails }: ApiIntegrationListStepProps) {
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [refreshing, setRefreshing] = useState(false);
   const [panelOpen, setPanelOpen] = useState(false);
@@ -66,7 +67,7 @@ export default function ApiIntegrationListStep({ onViewDetails }: ApiIntegration
     setTimeout(() => {
       const now = todayLabel();
       const created: ApiIntegration = {
-        id: `INT-${Math.floor(Math.random() * 9000 + 1000)}`,
+        id: `INT-${crypto.randomUUID()}`,
         name: name.trim(),
         type,
         description: description.trim() || `${type} integration`,
@@ -78,6 +79,7 @@ export default function ApiIntegrationListStep({ onViewDetails }: ApiIntegration
       setIntegrations((current) => [created, ...current]);
       setSaving(false);
       setPanelOpen(false);
+      onViewDetails(created);
     }, 1100);
   };
 
@@ -95,22 +97,26 @@ export default function ApiIntegrationListStep({ onViewDetails }: ApiIntegration
           <p className="text-[11px] text-muted-foreground mt-0.5">Manage your API integrations and connect new data sources.</p>
         </div>
         <div className="flex items-center gap-2">
-          <div className="inline-flex rounded-lg border border-border bg-muted/40 p-0.5">
-            <button
-              type="button"
-              onClick={() => setView('grid')}
-              title="Grid View"
-              className={`flex items-center gap-1.5 h-7 px-2.5 text-[11px] font-semibold rounded-md transition-colors ${view === 'grid' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}
-            >
-              <Grid3x3 size={12} />Grid
-            </button>
+          <div className="inline-flex overflow-hidden rounded border border-border" role="group" aria-label="Integration view">
             <button
               type="button"
               onClick={() => setView('list')}
               title="List View"
-              className={`flex items-center gap-1.5 h-7 px-2.5 text-[11px] font-semibold rounded-md transition-colors ${view === 'list' ? 'bg-card text-foreground shadow-sm' : 'text-muted-foreground'}`}
+              aria-label="List View"
+              aria-pressed={view === 'list'}
+              className={`flex items-center justify-center h-8 w-8 transition-colors ${view === 'list' ? 'bg-[#cf5830] text-white' : 'bg-card text-muted-foreground'}`}
             >
-              <List size={12} />List
+              <List size={15} />
+            </button>
+            <button
+              type="button"
+              onClick={() => setView('grid')}
+              title="Grid View"
+              aria-label="Grid View"
+              aria-pressed={view === 'grid'}
+              className={`flex items-center justify-center h-8 w-8 transition-colors ${view === 'grid' ? 'bg-[#cf5830] text-white' : 'bg-card text-muted-foreground'}`}
+            >
+              <Grid3x3 size={14} />
             </button>
           </div>
           <button

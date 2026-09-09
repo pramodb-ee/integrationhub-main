@@ -2,10 +2,11 @@
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ConnectorType, getConnectorLabel } from '@/components/ui/ConnectorIcon';
+import { mappingErrors, fieldValueError, mappedPayload } from './apiMapping';
 import {
   Plus, Trash2, AlertCircle, ChevronDown, GitBranch,
   RotateCcw, Eye, CheckCircle, Tag, Hash, Layers, X, AlertTriangle, Edit2, Save,
-  XCircle,
+  XCircle, ArrowRight,
 } from 'lucide-react';
 
 /* ─────────────────────────── Types ─────────────────────────── */
@@ -14,7 +15,7 @@ type Operation = 'add' | 'update' | 'append';
 
 type DataType = 'string' | 'number' | 'boolean' | 'date' | 'email' | 'phone' | 'array' | 'object';
 
-interface FieldMapping {
+export interface FieldMapping {
   id: string;
   dataType: DataType;
   sourceField: string;
@@ -44,10 +45,11 @@ interface CappingField {
   subFields: CappingSubField[];
 }
 
-interface CappingConfig {
+export interface CappingConfig {
   enabled: boolean;
   scope: 'primary_source' | 'request';
   requestLimit: number;
+  windowHours: number;
   fields: CappingField[];
   showEndMessage: boolean;
 }
@@ -56,6 +58,7 @@ interface SavedCapping {
   id: string;
   scope: 'primary_source' | 'request';
   requestLimit: number;
+  windowHours: number;
   enabledFields: Array<{ label: string; option: string; subValue: string }>;
   createdAt: string;
 }
@@ -74,11 +77,11 @@ const sourceFieldsByType: Partial<Record<ConnectorType, string[]>> = {
   'erp-crm': ['lead_id', 'first_name', 'last_name', 'email', 'phone', 'company', 'status', 'source', 'owner_id', 'created_date', 'last_modified'],
 };
 
-const destinationFields = [
+export const destinationFields = [
   'lead_name', 'email', 'mobile', 'phone', 'city', 'state', 'pincode',
   'source', 'campaign_name', 'ad_name', 'ad_id', 'keyword',
   'notes', 'lead_score', 'assigned_to', 'created_at', 'raw_data',
-  'lead_status', 'lead_source', 'lead_channel', 'lead_campaign', 'lead_medium',
+  'lead_status', 'lead_source', 'lead_channel', 'lead_campaign', 'lead_medium', 'course',
 ];
 
 // Fields that require the Operations dropdown
@@ -246,14 +249,17 @@ function OperationDropdown({ operations, onChange }: { operations: Operation[]; 
   );
 }
 
-function FieldToggle({ enabled, onChange }: { enabled: boolean; onChange: (v: boolean) => void }) {
+function FieldToggle({ enabled, onChange, label }: { enabled: boolean; onChange: (v: boolean) => void; label: string }) {
   return (
     <button
       type="button"
+      role="switch"
+      aria-label={label}
+      aria-checked={enabled}
       onClick={() => onChange(!enabled)}
-      className={`w-9 h-5 rounded-full transition-colors relative flex-shrink-0 ${enabled ? 'bg-primary' : 'bg-gray-300'}`}
+      className={`w-9 h-5 rounded-full transition-colors relative flex-shrink-0 ${enabled ? 'bg-[#cf5830]' : 'bg-gray-300'}`}
     >
-      <span className={`absolute top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${enabled ? 'translate-x-4' : 'translate-x-0.5'}`} />
+      <span className={`absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transition-transform ${enabled ? 'translate-x-4' : 'translate-x-0'}`} />
     </button>
   );
 }
@@ -262,11 +268,27 @@ function FieldToggle({ enabled, onChange }: { enabled: boolean; onChange: (v: bo
 
 interface FieldMappingStepProps {
   connectorType: ConnectorType;
+  requestPayload?: Record<string, unknown>;
+  initialState?: ApiMappingState;
+  onStateChange?: (state: ApiMappingState) => void;
 }
 
-export default function FieldMappingStep({ connectorType }: FieldMappingStepProps) {
-  const [mappings, setMappings] = useState<FieldMapping[]>(() => getDefaultMappings(connectorType));
+export interface ApiMappingState {
+  mappings: FieldMapping[];
+  staticFields: Array<{ id: string; key: string; label: string; value: string }>;
+  capping: CappingConfig;
+}
+
+export default function FieldMappingStep({ connectorType, requestPayload, initialState, onStateChange }: FieldMappingStepProps) {
+  const pendingFocus = useRef<string | null>(null);
+  const sourceSelects = useRef<Record<string, HTMLSelectElement | null>>({});
+  const [mappings, setMappings] = useState<FieldMapping[]>(() => initialState?.mappings ?? (requestPayload ? Object.keys(requestPayload).map((sourceField, index) => {
+    const aliases: Record<string, string> = { name: 'lead_name', full_name: 'lead_name', phone: 'mobile', phone_number: 'mobile', email_address: 'email', status: 'lead_status' };
+    const destinationField = aliases[sourceField] ?? (destinationFields.includes(sourceField) ? sourceField : '');
+    return { id: `map-${index}`, sourceField, destinationField, dataType: inferDataType(sourceField), operations: ['add'], transform: 'none', required: isRequiredDestField(destinationField), enabled: true, validationStatus: 'idle' } as FieldMapping;
+  }).map((mapping, index, all) => all.slice(0, index).some((other) => other.destinationField === mapping.destinationField) ? { ...mapping, destinationField: '' } : mapping) : getDefaultMappings(connectorType)));
   const [activeTab, setActiveTab] = useState<'fields' | 'static' | 'capping' | 'versions'>('fields');
+  const [staticError, setStaticError] = useState('');
 
   // Versioning
   const [selectedVersion, setSelectedVersion] = useState('v3');
@@ -274,10 +296,11 @@ export default function FieldMappingStep({ connectorType }: FieldMappingStepProp
   const [showCompare, setShowCompare] = useState(false);
 
   // Capping
-  const [capping, setCapping] = useState<CappingConfig>({
+  const [capping, setCapping] = useState<CappingConfig>(initialState?.capping ?? {
     enabled: false,
     scope: 'primary_source',
     requestLimit: 100,
+    windowHours: 24,
     fields: CAPPING_FIELDS_CONFIG.map((f) => ({ ...f, subFields: f.subFields.map((sf) => ({ ...sf })) })),
     showEndMessage: false,
   });
@@ -287,26 +310,36 @@ export default function FieldMappingStep({ connectorType }: FieldMappingStepProp
   const [previewCapping, setPreviewCapping] = useState<SavedCapping | null>(null);
 
   // Static fields
-  const [staticFields, setStaticFields] = useState<Array<{ id: string; key: string; label: string; value: string }>>([]);
+  const [staticFields, setStaticFields] = useState<ApiMappingState['staticFields']>(initialState?.staticFields ?? []);
+
+  useEffect(() => { onStateChange?.({ mappings, staticFields, capping }); }, [mappings, staticFields, capping, onStateChange]);
 
   const [testLeadLoading, setTestLeadLoading] = useState(false);
   const [testLeadResult, setTestLeadResult] = useState<'idle' | 'success' | 'failure'>('idle');
   const [testLeadError, setTestLeadError] = useState('');
 
-  const srcFields = sourceFieldsByType[connectorType] ?? ['name', 'email', 'phone', 'source'];
+  const srcFields = requestPayload ? Object.keys(requestPayload) : sourceFieldsByType[connectorType] ?? ['name', 'email', 'phone', 'source'];
 
   /* ── Mapping helpers ── */
   const addMapping = () => {
     const newId = `map-${mappings.length + 1}-${Date.now()}`;
+    pendingFocus.current = newId;
     setMappings((prev) => [
       ...prev,
-      { id: newId, dataType: 'string', sourceField: srcFields[0] ?? '', destinationField: destinationFields[0], operations: ['add'], transform: 'none', required: false, enabled: true, validationStatus: 'idle' },
+      { id: newId, dataType: 'string', sourceField: '', destinationField: '', operations: ['add'], transform: 'none', required: false, enabled: true, validationStatus: 'idle' },
     ]);
   };
+
+  useEffect(() => {
+    if (!pendingFocus.current) return;
+    const select = sourceSelects.current[pendingFocus.current];
+    if (select) { select.focus(); select.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); pendingFocus.current = null; }
+  }, [mappings]);
 
   const removeMapping = (id: string) => setMappings((prev) => prev.filter((m) => m.id !== id));
 
   const updateMapping = <K extends keyof FieldMapping>(id: string, field: K, value: FieldMapping[K]) => {
+    if ((field === 'sourceField' || field === 'destinationField') && value && mappings.some((row) => row.id !== id && row[field] === value)) return;
     setMappings((prev) => prev.map((m) => {
       if (m.id !== id) return m;
       const updated = { ...m, [field]: value };
@@ -370,7 +403,9 @@ export default function FieldMappingStep({ connectorType }: FieldMappingStepProp
 
   /* ── Static field helpers ── */
   const addStaticField = (preset: typeof STATIC_FIELD_PRESETS[0]) => {
-    setStaticFields((prev) => [...prev, { id: `sf-${Date.now()}`, key: preset.key, label: preset.label, value: preset.defaultVal }]);
+    if (preset.key && (mappings.some((row) => row.destinationField === preset.key) || staticFields.some((row) => row.key === preset.key))) { setStaticError('This destination field is already mapped.'); return; }
+    setStaticError('');
+    setStaticFields((prev) => [...prev, { id: crypto.randomUUID(), key: preset.key, label: preset.label, value: preset.defaultVal }]);
   };
   const removeStaticField = (id: string) => setStaticFields((prev) => prev.filter((f) => f.id !== id));
 
@@ -380,7 +415,7 @@ export default function FieldMappingStep({ connectorType }: FieldMappingStepProp
   };
 
   const resetCappingForm = () => {
-    setCapping({ enabled: false, scope: 'primary_source', requestLimit: 100, fields: CAPPING_FIELDS_CONFIG.map((f) => ({ ...f, subFields: f.subFields.map((sf) => ({ ...sf })) })), showEndMessage: false });
+    setCapping({ enabled: false, scope: 'primary_source', requestLimit: 100, windowHours: 24, fields: CAPPING_FIELDS_CONFIG.map((f) => ({ ...f, subFields: f.subFields.map((sf) => ({ ...sf })) })), showEndMessage: false });
   };
 
   const saveCapping = () => {
@@ -389,6 +424,7 @@ export default function FieldMappingStep({ connectorType }: FieldMappingStepProp
       id: editingCappingId ?? `cap-${Date.now()}`,
       scope: capping.scope,
       requestLimit: capping.requestLimit,
+      windowHours: capping.windowHours,
       enabledFields,
       createdAt: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
     };
@@ -398,15 +434,18 @@ export default function FieldMappingStep({ connectorType }: FieldMappingStepProp
     } else {
       setSavedCappings((prev) => [...prev, newCapping]);
     }
-    resetCappingForm();
+    if (!requestPayload) resetCappingForm();
   };
 
   const editCapping = (cap: SavedCapping) => {
     setEditingCappingId(cap.id);
-    setCapping((prev) => ({ ...prev, enabled: true, scope: cap.scope, requestLimit: cap.requestLimit }));
+    setCapping((prev) => ({ ...prev, enabled: true, scope: cap.scope, requestLimit: cap.requestLimit, windowHours: cap.windowHours }));
   };
 
-  const removeSavedCapping = (id: string) => setSavedCappings((prev) => prev.filter((c) => c.id !== id));
+  const removeSavedCapping = (id: string) => {
+    setSavedCappings((prev) => prev.filter((c) => c.id !== id));
+    if (requestPayload) setCapping((prev) => ({ ...prev, enabled: false }));
+  };
 
   /* ── Progress ── */
   const requiredMapped = mappings.filter((m) => m.required && m.destinationField).length;
@@ -415,6 +454,7 @@ export default function FieldMappingStep({ connectorType }: FieldMappingStepProp
   /* ─────────────────────────── Render ─────────────────────────── */
   return (
     <div>
+      {connectorType === 'api' && mappingErrors({ mappings, staticFields, capping }, requestPayload).length > 0 && <div role="alert" className="mb-4 p-3 text-[12px] text-danger bg-danger-bg rounded-lg">{mappingErrors({ mappings, staticFields, capping }, requestPayload).join(' ')}</div>}
       {/* Header */}
       <div className="mb-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
@@ -489,10 +529,29 @@ export default function FieldMappingStep({ connectorType }: FieldMappingStepProp
       {/* ══════════════ FIELD MAPPING TAB ══════════════ */}
       {activeTab === 'fields' && (
         <>
+          {connectorType === 'api' ? <div className="overflow-x-auto rounded-lg border border-border mb-4">
+            <table className="w-full min-w-[950px] text-left text-[12px]">
+              <thead className="bg-muted/40 text-muted-foreground"><tr>{['Data Type', 'Source Field (API)', '', 'Target Field (CRM)', 'Validation', 'Actions'].map((label, i) => <th key={i} className="px-3 py-3 font-medium">{label}</th>)}</tr></thead>
+              <tbody>{mappings.map((mapping) => {
+                const required = isRequiredDestField(mapping.destinationField);
+                const value = requestPayload ? mappedPayload(requestPayload, { mappings: [mapping], staticFields: [], capping })[mapping.destinationField] : undefined;
+                const issue = !mapping.sourceField || !mapping.destinationField ? 'Select source and target fields' : requestPayload ? fieldValueError(mapping.destinationField, value) : null;
+                const label = (field: string) => ({ email: 'Email', mobile: 'Mobile', lead_status: 'Status' }[field] ?? field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()));
+                return <tr key={mapping.id} className="border-t border-border">
+                  <td className="px-3 py-2"><span className={`rounded-sm border px-2 py-0.5 text-[11px] ${mapping.dataType === 'email' ? 'border-cyan-200 bg-cyan-50 text-cyan-600' : 'border-blue-200 bg-blue-50 text-blue-600'}`}>{DATA_TYPES.find((d) => d.value === mapping.dataType)?.label}</span></td>
+                  <td className="px-3 py-2"><select ref={(el) => { sourceSelects.current[mapping.id] = el; }} aria-label="Source field" value={mapping.sourceField} onChange={(e) => updateMapping(mapping.id, 'sourceField', e.target.value)} className="h-8 w-full rounded-md border border-border bg-card px-3 focus:outline-none focus:ring-2 focus:ring-blue-400"><option value="">Select source field</option>{srcFields.map((field) => <option key={field} disabled={mappings.some((other) => other.id !== mapping.id && other.sourceField === field)}>{field}</option>)}</select></td>
+                  <td><ArrowRight size={17} className="text-blue-500" /></td>
+                  <td className="px-3 py-2"><div className="relative"><select aria-label="Target field (CRM)" aria-required={required} value={mapping.destinationField} onChange={(e) => updateMapping(mapping.id, 'destinationField', e.target.value)} className={`h-8 w-full rounded-md border border-border bg-card px-3 focus:outline-none focus:ring-2 focus:ring-blue-400 ${required ? 'pr-24' : ''}`}><option value="">Select target field</option>{destinationFields.map((field) => <option key={field} value={field} disabled={mappings.some((other) => other.id !== mapping.id && other.destinationField === field) || staticFields.some((f) => f.key === field)}>{label(field)}</option>)}</select>{required && <span className="pointer-events-none absolute right-6 top-1.5 rounded-sm border border-red-200 bg-red-50 px-1.5 text-[10px] text-red-500">Required</span>}</div></td>
+                  <td className="px-3 py-2"><span aria-live="polite" className={issue ? 'inline-flex items-center gap-1 rounded-sm border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] text-red-500' : 'text-emerald-600 text-[11px]'}>{issue ? <><X size={11} />{issue}</> : <span className="inline-flex items-center gap-1"><CheckCircle size={12} />Valid</span>}</span></td>
+                  <td className="px-3 py-2"><button type="button" aria-label={`Delete ${mapping.sourceField || 'empty'} mapping`} onClick={() => removeMapping(mapping.id)} className="rounded p-2 text-red-500 hover:bg-red-50"><Trash2 size={14} /></button></td>
+                </tr>;
+              })}</tbody>
+            </table>
+          </div> : <>
           {/* Column headers */}
           <div className="grid gap-2 mb-2 px-2" style={{ gridTemplateColumns: '90px 1fr 1fr 80px 110px 32px' }}>
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Data Type</p>
-            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Source Field (SAP ERP)</p>
+            <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Source Field ({requestPayload ? 'API' : 'SAP ERP'})</p>
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Destination Field (CRM)</p>
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Validation</p>
             <p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Operations</p>
@@ -533,7 +592,8 @@ export default function FieldMappingStep({ connectorType }: FieldMappingStepProp
                       onChange={(e) => { updateMapping(mapping.id, 'sourceField', e.target.value); }}
                       className="w-full h-7 pl-2 pr-5 text-[11px] bg-muted rounded border border-border focus:outline-none focus:ring-1 focus:ring-primary appearance-none"
                     >
-                      {srcFields.map((f) => (
+                      <option value="">Select source field</option>
+                      {srcFields.filter((field) => !mappings.some((other) => other.id !== mapping.id && other.sourceField === field)).map((f) => (
                         <option key={`src-${mapping.id}-${f}`} value={f}>{f}</option>
                       ))}
                     </select>
@@ -547,7 +607,8 @@ export default function FieldMappingStep({ connectorType }: FieldMappingStepProp
                       onChange={(e) => updateMapping(mapping.id, 'destinationField', e.target.value)}
                       className="w-full h-7 pl-2 pr-5 text-[11px] bg-muted rounded border border-border focus:outline-none focus:ring-1 focus:ring-primary appearance-none"
                     >
-                      {destinationFields.map((f) => (
+                      <option value="">Select destination field</option>
+                      {destinationFields.filter((field) => !mappings.some((other) => other.id !== mapping.id && other.destinationField === field) && !staticFields.some((item) => item.key === field)).map((f) => (
                         <option key={`dst-${mapping.id}-${f}`} value={f}>{f}</option>
                       ))}
                     </select>
@@ -600,11 +661,12 @@ export default function FieldMappingStep({ connectorType }: FieldMappingStepProp
             })}
           </div>
 
+          </>}
           {/* Add Mapping button only */}
           <div className="flex items-center gap-2 mb-4">
             <button
               onClick={addMapping}
-              className="flex items-center gap-1.5 h-8 px-4 text-[12px] font-medium bg-primary/10 text-primary border border-primary/30 rounded-md hover:bg-primary/20 transition-colors"
+              className="flex w-full items-center justify-center gap-1.5 h-8 px-4 text-[12px] font-medium text-muted-foreground border border-dashed border-border rounded-md hover:bg-muted transition-colors"
             >
               <Plus size={13} /> Add Mapping
             </button>
@@ -625,13 +687,14 @@ export default function FieldMappingStep({ connectorType }: FieldMappingStepProp
       {/* ══════════════ STATIC FIELDS TAB ══════════════ */}
       {activeTab === 'static' && (
         <div className="space-y-4">
+          {staticError && <p role="alert" className="text-[12px] text-danger">{staticError}</p>}
           <div className="p-3 rounded-lg bg-info-bg border border-info-border">
             <p className="text-[12px] text-info">
               <span className="font-semibold">Static fields</span> are fixed values injected into every lead record regardless of source data.
             </p>
           </div>
           <div>
-            <p className="text-[12px] font-semibold text-foreground mb-2">Add Static Field</p>
+            <button type="button" onClick={() => addStaticField({ key: '', label: 'Custom Field', defaultVal: '' })} className="flex items-center gap-1.5 h-8 px-3 mb-2 text-[12px] font-semibold bg-primary text-white rounded-md"><Plus size={13} />Add Static Mapping</button>
             <div className="flex flex-wrap gap-2">
               {STATIC_FIELD_PRESETS.map((preset) => (
                 <button key={`sfp-${preset.key}`} onClick={() => addStaticField(preset)} className="flex items-center gap-1.5 h-7 px-3 text-[11px] font-medium bg-card border border-border rounded-md hover:bg-muted transition-colors text-muted-foreground">
@@ -653,8 +716,8 @@ export default function FieldMappingStep({ connectorType }: FieldMappingStepProp
                   <Tag size={13} className="text-muted-foreground flex-shrink-0" />
                   <div className="flex-1 grid grid-cols-2 gap-3">
                     <div>
-                      <p className="text-[10px] text-muted-foreground mb-1">Field Key</p>
-                      <input value={sf.key} onChange={(e) => setStaticFields((prev) => prev.map((f) => f.id === sf.id ? { ...f, key: e.target.value } : f))} className="w-full h-7 px-2 text-[12px] bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary" />
+                      <p className="text-[10px] text-muted-foreground mb-1">Destination Field (CRM)</p>
+                      <input aria-label="Destination Field (CRM)" value={sf.key} onChange={(e) => { const key = e.target.value; if (key.trim() && (mappings.some((row) => row.destinationField === key.trim()) || staticFields.some((row) => row.id !== sf.id && row.key.trim() === key.trim()))) { setStaticError('This destination field is already mapped.'); return; } setStaticError(''); setStaticFields((prev) => prev.map((f) => f.id === sf.id ? { ...f, key } : f)); }} className="w-full h-7 px-2 text-[12px] bg-muted border border-border rounded focus:outline-none focus:ring-1 focus:ring-primary" />
                     </div>
                     <div>
                       <p className="text-[10px] text-muted-foreground mb-1">Static Value</p>
@@ -693,7 +756,7 @@ export default function FieldMappingStep({ connectorType }: FieldMappingStepProp
                         <span className="text-[10px] text-muted-foreground">{cap.createdAt}</span>
                       </div>
                       <div className="flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-muted-foreground">
-                        <span>Limit: <span className="font-semibold text-foreground">{cap.requestLimit}</span></span>
+                        <span>Limit: <span className="font-semibold text-foreground">{cap.requestLimit} / {cap.windowHours === 1 ? '1 Hour' : '1 Day'}</span></span>
                         {cap.enabledFields.map((ef, i) => (
                           <span key={i}>{ef.label}: <span className="font-semibold text-foreground">{ef.option}{ef.subValue ? ` → ${ef.subValue}` : ''}</span></span>
                         ))}
@@ -716,7 +779,7 @@ export default function FieldMappingStep({ connectorType }: FieldMappingStepProp
                 <p className="text-[13px] font-semibold text-foreground">{editingCappingId ? 'Edit Capping' : 'Enable Capping'}</p>
                 <p className="text-[11px] text-muted-foreground mt-0.5">{editingCappingId ? 'Modify the selected capping configuration' : 'Configure a new capping rule for this integration'}</p>
               </div>
-              <FieldToggle enabled={capping.enabled} onChange={(v) => setCapping((prev) => ({ ...prev, enabled: v }))} />
+              <FieldToggle label="Enable Capping" enabled={capping.enabled} onChange={(v) => setCapping((prev) => ({ ...prev, enabled: v }))} />
             </div>
 
             {capping.enabled && (
@@ -741,9 +804,16 @@ export default function FieldMappingStep({ connectorType }: FieldMappingStepProp
                   </div>
                 </div>
 
-                <div className="max-w-xs">
+                <div className="grid grid-cols-2 gap-3 max-w-lg">
+                  <div>
                   <p className="text-[12px] font-medium text-foreground mb-1.5">Request Limit</p>
                   <input type="number" value={capping.requestLimit} onChange={(e) => setCapping((prev) => ({ ...prev, requestLimit: Number(e.target.value) }))} className="w-full h-8 px-3 text-[12px] bg-muted border border-border rounded-md focus:outline-none focus:ring-1 focus:ring-primary" min={1} />
+                  </div>
+                  <label className="block text-[12px] font-medium text-foreground">Capping Period
+                    <select value={capping.windowHours} onChange={(e) => setCapping((prev) => ({ ...prev, windowHours: Number(e.target.value) }))} className="w-full h-8 px-3 mt-1.5 bg-muted border border-border rounded-md">
+                      <option value={24}>1 Day</option><option value={1}>1 Hour</option>
+                    </select>
+                  </label>
                 </div>
 
                 <div>
@@ -760,7 +830,7 @@ export default function FieldMappingStep({ connectorType }: FieldMappingStepProp
                         <div key={cf.key} className={`rounded-lg border transition-all ${cf.enabled ? 'border-primary/30 bg-primary/3' : 'border-border bg-card'}`}>
                           <div className="flex items-center justify-between px-3 py-2.5">
                             <span className="text-[12px] font-semibold text-foreground">{cf.label}</span>
-                            <FieldToggle enabled={cf.enabled} onChange={(v) => updateCappingField(cf.key, { enabled: v, selectedOption: '', subDropdownValue: '' })} />
+                            <FieldToggle label={cf.label} enabled={cf.enabled} onChange={(v) => updateCappingField(cf.key, { enabled: v, selectedOption: '', subDropdownValue: '' })} />
                           </div>
                           {cf.enabled && (
                             <div className="px-3 pb-3 space-y-2.5 border-t border-border/50 pt-2.5">

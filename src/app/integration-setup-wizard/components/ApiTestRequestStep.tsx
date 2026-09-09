@@ -12,6 +12,7 @@ interface TestRequestPayload {
   course: string;
   city: string;
   source: string;
+  status?: string;
 }
 
 interface TestRequest {
@@ -42,13 +43,13 @@ function generateToken() {
 function buildRequest(payload: TestRequestPayload, requestType: string, minutesAgo: number): TestRequest {
   const now = new Date(Date.now() - minutesAgo * 60000);
   return {
-    id: `REQ-${Math.floor(Math.random() * 900000 + 100000)}`,
+    id: `REQ-${crypto.randomUUID()}`,
     requestType,
     method: 'POST',
     status: 'Success',
     timestamp: now.toLocaleString(),
     created: now.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' }),
-    payload,
+    payload: { ...payload, status: payload.status ?? 'New' },
   };
 }
 
@@ -61,31 +62,42 @@ function buildSeedRequests(): TestRequest[] {
 
 interface ApiTestRequestStepProps {
   integrationName?: string;
-  onFieldMappingCreated: () => void;
+  isNewIntegration?: boolean;
+  onFieldMappingCreated: (payload: Record<string, unknown>) => void;
+  onCaptureRequest?: (payload: Record<string, unknown>) => string | null;
 }
 
-export default function ApiTestRequestStep({ integrationName, onFieldMappingCreated }: ApiTestRequestStepProps) {
+export default function ApiTestRequestStep({ integrationName, isNewIntegration = false, onFieldMappingCreated, onCaptureRequest }: ApiTestRequestStepProps) {
   const [endpoint] = useState(() => `https://eeintegration-test.azurewebsites.net/api/integration/${generateToken()}`);
   const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-  const [requests, setRequests] = useState<TestRequest[]>(() => buildSeedRequests());
+  const [requests, setRequests] = useState<TestRequest[]>(() => isNewIntegration ? [] : buildSeedRequests());
   const [mappingPanel, setMappingPanel] = useState<TestRequest | null>(null);
   const [creating, setCreating] = useState(false);
+  const [fetchError, setFetchError] = useState('');
 
   const handleCopy = async () => {
     try {
+      setCopyError('');
       await navigator.clipboard.writeText(endpoint);
       setCopied(true);
       setTimeout(() => setCopied(false), 1800);
     } catch {
-      // Clipboard access denied — silently ignore, the URL is still selectable/readable.
+      setCopyError('Unable to copy URL. Select the URL and copy it manually.');
     }
   };
 
   const handleRefresh = () => {
+    if (refreshing) return;
     setRefreshing(true);
+    setFetchError('');
     setTimeout(() => {
-      setRequests((current) => (current.length === 0 ? buildSeedRequests() : current));
+      // Simulate the next incoming request until the integration API is connected.
+      const request = buildRequest(SAMPLE_PAYLOADS[requests.length % SAMPLE_PAYLOADS.length], REQUEST_TYPES[requests.length % REQUEST_TYPES.length], 0);
+      const error = onCaptureRequest?.({ ...request.payload });
+      if (error) setFetchError(error);
+      else setRequests((current) => [request, ...current]);
       setRefreshing(false);
     }, 700);
   };
@@ -93,11 +105,12 @@ export default function ApiTestRequestStep({ integrationName, onFieldMappingCrea
   const deleteRequest = (id: string) => setRequests((current) => current.filter((request) => request.id !== id));
 
   const handleCreateNew = () => {
+    if (!mappingPanel || creating) return;
     setCreating(true);
     setTimeout(() => {
       setCreating(false);
       setMappingPanel(null);
-      onFieldMappingCreated();
+      onFieldMappingCreated({ ...mappingPanel.payload });
     }, 500);
   };
 
@@ -108,11 +121,11 @@ export default function ApiTestRequestStep({ integrationName, onFieldMappingCrea
         <p className="text-[11px] text-muted-foreground mt-0.5">{integrationName ? `${integrationName} — ` : ''}Send a sample request to your integration endpoint to verify it&rsquo;s reachable.</p>
       </div>
 
-      <div className="card-base rounded-xl p-4 space-y-2.5">
-        <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Integration Endpoint URL</span>
-        <div className="flex items-center gap-2">
-          <div className="flex-1 h-10 px-3 flex items-center bg-muted/40 border border-border rounded-lg overflow-x-auto">
-            <code className="text-[12px] text-foreground font-mono whitespace-nowrap">{endpoint}</code>
+      <div className="card-base overflow-hidden rounded-lg pb-5 space-y-4">
+        <h2 className="border-b border-border px-4 py-4 text-[15px] font-medium text-muted-foreground">Integration Endpoint URL</h2>
+        <div className="flex items-center gap-2 px-4">
+          <div className="min-w-0 flex-1 min-h-10 px-3 py-2 flex items-center bg-[#f5f5f5] rounded overflow-x-auto">
+            <code className="text-[11px] text-rose-500 bg-[#ededed] border border-[#d1d1d1] rounded-sm px-1 py-0.5 font-mono whitespace-nowrap select-all">{endpoint}</code>
           </div>
           <button
             type="button"
@@ -125,15 +138,17 @@ export default function ApiTestRequestStep({ integrationName, onFieldMappingCrea
             {copied ? 'Copied' : 'Copy URL'}
           </button>
         </div>
-        <p className="text-[11px] text-muted-foreground leading-relaxed">
+        {copyError && <p role="alert" className="px-4 text-xs text-danger">{copyError}</p>}
+        <p className="px-4 text-[11px] text-muted-foreground/60 leading-relaxed">
           Use this URL to send test requests to your integration. Copy the URL and use it in your API client or webhook configuration.
         </p>
       </div>
 
       <div className="space-y-2.5">
+        {fetchError && <p role="alert" className="text-[12px] text-danger bg-danger-bg p-3 rounded-lg">{fetchError}</p>}
         <div className="flex items-center justify-between">
           <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Test Requests</span>
-          <button
+          {requests.length > 0 && <button
             type="button"
             onClick={handleRefresh}
             disabled={refreshing}
@@ -141,12 +156,16 @@ export default function ApiTestRequestStep({ integrationName, onFieldMappingCrea
             className="flex items-center gap-1.5 h-7 px-2.5 text-[11px] font-semibold bg-card border border-border rounded-lg hover:bg-muted transition-colors disabled:opacity-60"
           >
             <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />Refresh
-          </button>
+          </button>}
         </div>
 
         {requests.length === 0 ? (
           <div className="card-base rounded-xl px-4 py-10 text-center">
-            <p className="text-[12px] text-muted-foreground">No test requests yet. Click Refresh to check for new ones.</p>
+            <p className="text-[12px] text-muted-foreground">Send a test request to your integration endpoint, then fetch it here.</p>
+            <button type="button" onClick={handleRefresh} disabled={refreshing} className="inline-flex items-center gap-1.5 h-9 px-4 mt-4 text-[12px] font-semibold bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-60">
+              {refreshing && <Loader2 size={13} className="animate-spin" />}
+              {refreshing ? 'Fetching…' : 'Fetch Test Request'}
+            </button>
           </div>
         ) : (
           <div className="card-base overflow-x-auto rounded-xl">
@@ -175,7 +194,7 @@ export default function ApiTestRequestStep({ integrationName, onFieldMappingCrea
                         onClick={() => setMappingPanel(request)}
                         className="flex items-center gap-1.5 h-7 px-2.5 text-[10px] font-semibold rounded-md bg-primary text-white hover:bg-primary/90 transition-colors whitespace-nowrap shadow-sm"
                       >
-                        <GitBranch size={11} />Field Mapping
+                        <GitBranch size={11} />Fetch Mapping
                       </button>
                       <button type="button" onClick={() => deleteRequest(request.id)} title="Delete" className="p-1.5 rounded-md hover:bg-danger-bg text-danger transition-colors flex-shrink-0">
                         <Trash2 size={13} />
@@ -224,6 +243,13 @@ export default function ApiTestRequestStep({ integrationName, onFieldMappingCrea
                     data: mappingPanel.payload,
                   }, null, 2)}
                 </pre>
+              </div>
+              <div className="text-[12px] text-muted-foreground leading-relaxed">
+                <p className="font-semibold text-foreground">Options:</p>
+                <ul className="list-disc pl-5 mt-2 space-y-1">
+                  <li><strong className="font-semibold text-foreground">Create New:</strong> Reset existing mappings and start fresh with this test request data</li>
+                  <li><strong className="font-semibold text-foreground">Cancel:</strong> Close this dialog without making changes</li>
+                </ul>
               </div>
             </div>
             <div className="flex items-center justify-end gap-2.5 px-6 py-4 border-t border-border bg-muted/30 flex-shrink-0">

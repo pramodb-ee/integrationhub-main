@@ -19,6 +19,7 @@ export default function Topbar({ onMobileMenuToggle }: TopbarProps) {
   const [searchOpen, setSearchOpen] = useState(false);
 
   const routeInfo = routeLabels[pathname] || { label: 'IntegrationHub' };
+  const isIntegrationCenter = pathname === '/';
 
   return (
     <header className="h-14 bg-card border-b border-border flex items-center px-4 lg:px-6 gap-3 flex-shrink-0 z-30">
@@ -46,7 +47,7 @@ export default function Topbar({ onMobileMenuToggle }: TopbarProps) {
       <div className="flex-1" />
 
       {/* Search */}
-      <div className="relative hidden md:block">
+      {!isIntegrationCenter && <div className="relative hidden md:block">
         {searchOpen ? (
           <input
             autoFocus
@@ -68,18 +69,18 @@ export default function Topbar({ onMobileMenuToggle }: TopbarProps) {
         {searchOpen && (
           <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground pointer-events-none" />
         )}
-      </div>
+      </div>}
 
       {/* Last updated */}
-      <div className="hidden xl:flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted rounded-md px-2.5 py-1.5">
+      {!isIntegrationCenter && <div className="hidden xl:flex items-center gap-1.5 text-[11px] text-muted-foreground bg-muted rounded-md px-2.5 py-1.5">
         <div className="pulse-dot w-1.5 h-1.5" />
         <span>Live</span>
-      </div>
+      </div>}
 
       {/* Actions */}
-      <button className="p-1.5 rounded-md hover:bg-muted text-muted-foreground transition-colors relative" title="Refresh data">
+      {!isIntegrationCenter && <button className="p-1.5 rounded-md hover:bg-muted text-muted-foreground transition-colors relative" title="Refresh data">
         <RefreshCw size={16} />
-      </button>
+      </button>}
 
       <button className="p-1.5 rounded-md hover:bg-muted text-muted-foreground transition-colors relative" title="Notifications">
         <Bell size={16} />

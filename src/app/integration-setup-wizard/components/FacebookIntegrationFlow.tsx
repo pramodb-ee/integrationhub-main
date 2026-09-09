@@ -1,5 +1,6 @@
 'use client';
 
+import FacebookPagesForms from './FacebookPagesForms';
 import React, { useState, useEffect, useRef } from 'react';
 import {
   CheckCircle2,
@@ -368,124 +369,7 @@ export default function FacebookIntegrationFlow({ onTestLeadRetrieved }: Faceboo
             </button>
           </div>
 
-          {/* ── STEP 3: Page Selection ── */}
-          <div className="space-y-2">
-            <label className="text-[13px] font-medium text-foreground">Select Facebook Page</label>
-            <div className="relative" ref={dropdownRef}>
-              <button
-                onClick={() => setPageDropdownOpen((v) => !v)}
-                className="w-full flex items-center justify-between h-9 px-3 text-[13px] bg-card border border-border rounded-lg hover:border-primary/50 transition-colors"
-              >
-                <span className={selectedPage ? 'text-foreground' : 'text-muted-foreground'}>
-                  {selectedPage ? selectedPage.name : 'Select a Facebook Page…'}
-                </span>
-                <ChevronDown size={14} className={`text-muted-foreground transition-transform ${pageDropdownOpen ? 'rotate-180' : ''}`} />
-              </button>
-              {pageDropdownOpen && (
-                <div className="absolute top-full left-0 right-0 mt-1 bg-card border border-border rounded-lg shadow-lg z-20 overflow-hidden">
-                  {MOCK_PAGES.map((page) => (
-                    <button
-                      key={page.id}
-                      onClick={() => { setSelectedPageId(page.id); setPageDropdownOpen(false); }}
-                      className={`w-full text-left px-3 py-2.5 text-[13px] hover:bg-muted transition-colors ${selectedPageId === page.id ? 'bg-primary/5 text-primary font-medium' : 'text-foreground'}`}
-                    >
-                      {page.name}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-
-          {/* ── STEP 4: Lead Gen Forms ── */}
-          {selectedPageId && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <FileText size={15} className="text-primary" />
-                <h3 className="text-[14px] font-semibold text-foreground">Lead Gen Forms</h3>
-                <span className="text-[11px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">{MOCK_LEAD_FORMS.length} forms</span>
-              </div>
-
-              <div className="border border-border rounded-xl overflow-hidden">
-                {/* Table header */}
-                <div className="grid grid-cols-[2fr_1fr_1.5fr_1fr_auto] gap-3 px-4 py-2.5 bg-muted/50 border-b border-border text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">
-                  <span>Form Name</span>
-                  <span>Status</span>
-                  <span>Form ID</span>
-                  <span>Mapping</span>
-                  <span className="text-right pr-1">Action</span>
-                </div>
-
-                {/* Table rows */}
-                {MOCK_LEAD_FORMS.map((form) => (
-                  <div key={form.id} className="border-b border-border last:border-b-0">
-                    <div className="grid grid-cols-[2fr_1fr_1.5fr_1fr_auto] gap-3 items-center px-4 py-3">
-                      {/* Form Name */}
-                      <div className="flex items-center gap-2 min-w-0">
-                        <Settings size={13} className="text-muted-foreground flex-shrink-0" />
-                        <span className="text-[13px] font-medium text-foreground truncate">{form.name}</span>
-                      </div>
-
-                      {/* Status */}
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium w-fit ${statusColor[form.status]}`}>
-                        {form.status}
-                      </span>
-
-                      {/* Form ID */}
-                      <span className="text-[12px] font-mono text-muted-foreground truncate">{form.formId}</span>
-
-                      {/* Mapping */}
-                      <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium w-fit ${mappingColor[form.mappingStatus]}`}>
-                        {form.mappingStatus}
-                      </span>
-
-                      {/* Fetch Test Lead button */}
-                      <button
-                        onClick={() => handleFetchTestLead(form)}
-                        disabled={fetchingLeadFor === form.id}
-                        className="flex items-center gap-1.5 h-7 px-3 text-[11px] font-medium bg-primary/10 text-primary border border-primary/20 rounded-md hover:bg-primary/20 active:scale-95 transition-all disabled:opacity-60 disabled:cursor-not-allowed whitespace-nowrap"
-                      >
-                        {fetchingLeadFor === form.id ? (
-                          <Loader2 size={11} className="animate-spin" />
-                        ) : (
-                          <RefreshCw size={11} />
-                        )}
-                        Fetch Test Lead
-                      </button>
-                    </div>
-
-                    {/* Test lead result + verification inline */}
-                    {testLeadResults[form.id] && (
-                      <div className="px-4 pb-3 space-y-2">
-                        <TestLeadResultPanel
-                          result={testLeadResults[form.id]!}
-                          onClose={() => setTestLeadResults((prev) => { const n = { ...prev }; delete n[form.id]; return n; })}
-                        />
-                        <TestLeadVerifiedPanel />
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {/* Best practice note */}
-              <div className="flex items-start gap-2 text-[12px] text-muted-foreground bg-blue-50 dark:bg-blue-950/20 border border-blue-200 dark:border-blue-800 rounded-lg p-3">
-                <Info size={13} className="text-blue-500 mt-0.5 flex-shrink-0" />
-                <span>
-                  Use Meta&apos;s{' '}
-                  <a
-                    href={META_TESTING_TOOL_URL}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-primary underline underline-offset-2 hover:no-underline"
-                  >
-                    Lead Ads Testing Tool
-                  </a>{' '}
-                  to submit test leads before publishing your integration.
-                </span>
-              </div>
-            </div>
-          )}
+          <FacebookPagesForms onReady={onTestLeadRetrieved} />
         </div>
       )}
 

@@ -12,7 +12,7 @@ import TataIntegrationPopup from './TataIntegrationPopup';
 import Link from 'next/link';
 import StatusBadge from '@/components/ui/StatusBadge';
 import ConnectorIcon, { getConnectorLabel } from '@/components/ui/ConnectorIcon';
-import { Plus, Search, Download, RefreshCw, X, ChevronDown, AlertTriangle, Zap, LayoutGrid, List, Activity, Edit2, ExternalLink } from 'lucide-react';
+import { Plus, Search, X, ChevronDown, AlertTriangle, Zap, LayoutGrid, List, Activity, Edit2, ExternalLink } from 'lucide-react';
 
 const MOCK_INTEGRATIONS: Integration[] = [
   { id: 'int-001', name: 'Facebook Lead Gen - Main',       type: 'facebook',     status: 'healthy',         lastSync: '3 min ago',  events24h: 1842, successRate: 98.7, latencyMs: 214,  owner: 'Pramod Bhujbal', created: 'Aug 12, 2026', environment: 'production', errorCount: 0 },
@@ -236,7 +236,7 @@ export default function IntegrationCenterContent() {
         <div>
           <h1 className="text-[22px] font-semibold text-foreground tracking-tight">Integration Center</h1>
           <p className="text-[13px] text-muted-foreground mt-0.5">
-            {MOCK_INTEGRATIONS.length} integrations configured · Last refreshed Sep 2, 2026 at 6:43 AM · Admin: <span className="font-medium text-foreground">Pramod Bhujbal (PB)</span>
+            {MOCK_INTEGRATIONS.length} integrations configured · Last refreshed Sep 2, 2026 at 6:43 AM
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -247,20 +247,12 @@ export default function IntegrationCenterContent() {
             <Zap size={13} className="text-primary" />
             <span className="hidden sm:block">Conversion API</span>
           </button>
-          <button className="flex items-center gap-1.5 h-8 px-3 text-[12px] font-medium bg-card border border-border rounded-md hover:bg-muted transition-all text-muted-foreground">
-            <Download size={13} />
-            <span className="hidden sm:block">Export</span>
-          </button>
-          <button className="flex items-center gap-1.5 h-8 px-3 text-[12px] font-medium bg-card border border-border rounded-md hover:bg-muted transition-all text-muted-foreground">
-            <RefreshCw size={13} />
-            <span className="hidden sm:block">Refresh</span>
-          </button>
           <button
             onClick={() => setCatalogOpen(true)}
             className="flex items-center gap-1.5 h-8 px-3 text-[12px] font-semibold bg-primary text-white rounded-md hover:bg-primary/90 active:scale-95 transition-all shadow-sm"
           >
             <Plus size={14} />
-            Add Integration
+            Add New Integration
           </button>
         </div>
       </div>
@@ -453,7 +445,7 @@ export default function IntegrationCenterContent() {
       </div>
 
       {/* Modals & Panels */}
-      <IntegrationCatalogModal open={catalogOpen} onClose={() => setCatalogOpen(false)} />
+      <IntegrationCatalogModal open={catalogOpen} onClose={() => setCatalogOpen(false)} presentation="drawer" />
       {failedPanelOpen && <FailedIntegrationsPanel onClose={() => setFailedPanelOpen(false)} />}
       {conversionAPIPanelOpen && <ConversionAPIPanel onClose={() => setConversionAPIPanelOpen(false)} />}
       {detailIntegration && <IntegrationDetailModal integration={detailIntegration} onClose={() => setDetailIntegration(null)} />}

@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Modal from '@/components/ui/Modal';
 import TataCallLogsPanel from './TataCallLogsPanel';
+import * as XLSX from 'xlsx';
 import {
   CheckCircle2, Copy, Download, Edit2, History, MoreHorizontal, Pause, Phone, PhoneCall, Play, Plus,
   Trash2, Upload, UserPlus, X, XCircle,
@@ -57,6 +58,13 @@ type Notice = { title: string; detail: string } | null;
 type TestCallResponse = { callId: string; to: string; agent: string; status: string; duration?: string; reason?: string; timestamp: string };
 type TestCallResult = { index: number; outcome: 'success' | 'failed'; response: TestCallResponse } | null;
 
+const DEFAULT_OUTBOUND_USERS: User[] = [
+  { name: 'Priya Sharma', mobile: '+91 9876543210', email: 'priya.sharma@company.com', extension: '081818881001', status: 'Active', extra: { userId: 'U1001', agentId: 'AGT-101', campaignName: 'Inbound Sales Line' } },
+  { name: 'Rahul Verma', mobile: '+91 9823456712', email: 'rahul.verma@company.com', extension: '081818881002', status: 'Active', extra: { userId: 'U1002', agentId: 'AGT-102', campaignName: 'Missed Call Follow-up' } },
+  { name: 'Kavya Iyer', mobile: '+91 9765432109', email: 'kavya.iyer@company.com', extension: 'Not created', status: 'Inactive', extra: { userId: 'U1003', agentId: 'AGT-103', campaignName: 'Click-to-Call Campaign' } },
+];
+const OUTBOUND_USERS_STORAGE_KEY = 'integrationhub-tata-outbound-users';
+
 const inputClass = 'w-full h-9 px-3 text-[12px] bg-card border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary';
 const labelClass = 'block text-[11px] font-semibold text-muted-foreground mb-1.5 uppercase tracking-wide';
 
@@ -79,7 +87,8 @@ interface TataOutboundUserManagementProps {
 }
 
 export default function TataOutboundUserManagement({ onTestCallSuccess }: TataOutboundUserManagementProps) {
-  const [users, setUsers] = useState<User[]>([]);
+  const [users, setUsers] = useState<User[]>(DEFAULT_OUTBOUND_USERS);
+  const [usersLoaded, setUsersLoaded] = useState(false);
   const [open, setOpen] = useState(false);
   const [menu, setMenu] = useState<number | null>(null);
   const [menuPos, setMenuPos] = useState<{ top: number; left: number } | null>(null);
@@ -88,17 +97,16 @@ export default function TataOutboundUserManagement({ onTestCallSuccess }: TataOu
     const rect = target.getBoundingClientRect();
     const menuWidth = 176; // w-44
     const menuHeight = 208; // approx height of the 5-item + divider menu
-    let top = rect.bottom + 4;
-    let left = rect.right - menuWidth;
-    if (left < 8) left = 8;
-    if (left + menuWidth > window.innerWidth - 8) left = window.innerWidth - menuWidth - 8;
-    if (top + menuHeight > window.innerHeight - 8) top = Math.max(8, rect.top - menuHeight - 4);
+    let top = Math.min(Math.max(8, rect.top - 8), window.innerHeight - menuHeight - 8);
+    let left = rect.left - menuWidth - 6;
+    if (left < 8) left = Math.min(window.innerWidth - menuWidth - 8, rect.right + 6);
     setMenuPos({ top, left });
     setMenu(index);
   };
   const closeMenu = () => { setMenu(null); setMenuPos(null); };
   const [confirm, setConfirm] = useState<ConfirmAction>(null);
   const [notice, setNotice] = useState<Notice>(null);
+  const [bulkNotice, setBulkNotice] = useState<Notice>(null);
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [form, setForm] = useState<Record<string, string>>({ empId: '081818881818' });
   const [name, setName] = useState('');
@@ -118,6 +126,25 @@ export default function TataOutboundUserManagement({ onTestCallSuccess }: TataOu
   // Bulk upload
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(OUTBOUND_USERS_STORAGE_KEY);
+      if (saved) {
+        const parsed: unknown = JSON.parse(saved);
+        if (Array.isArray(parsed) && parsed.length > 0) setUsers(parsed as User[]);
+      }
+    } catch {
+      // Keep the default user list if browser storage is unavailable or invalid.
+    } finally {
+      setUsersLoaded(true);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!usersLoaded) return;
+    try { localStorage.setItem(OUTBOUND_USERS_STORAGE_KEY, JSON.stringify(users)); } catch { /* Browser storage can be unavailable. */ }
+  }, [users, usersLoaded]);
+
   const reset = () => { setForm({ empId: '081818881818' }); setName(''); setMobile(''); setEmail(''); setActive('Active'); setExtension(false); setValidationMessage(''); };
   const openAddPanel = () => { setEditingIndex(null); reset(); setOpen(true); };
   const openEditPanel = (index: number) => {
@@ -135,7 +162,7 @@ export default function TataOutboundUserManagement({ onTestCallSuccess }: TataOu
     setOpen(true);
     closeMenu();
   };
-  const closePanel = () => { setOpen(false); setEditingIndex(null); };
+  const closePanel = () => { setOpen(false); setEditingIndex(null); setBulkNotice(null); };
   const submit = () => {
     if (!name.trim() || !mobile.trim() || !email.trim()) {
       setValidationMessage('Name, Call Forward Number, and Email are required.');
@@ -209,7 +236,19 @@ export default function TataOutboundUserManagement({ onTestCallSuccess }: TataOu
   const handleBulkFile = (file: File) => {
     const reader = new FileReader();
     reader.onload = () => {
-      const rows = parseCsv(String(reader.result || ''));
+      let rows: Record<string, string>[] = [];
+      try {
+        if (/\.csv$/i.test(file.name)) {
+          rows = parseCsv(new TextDecoder().decode(reader.result as ArrayBuffer));
+        } else {
+          const workbook = XLSX.read(reader.result, { type: 'array' });
+          const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+          rows = firstSheet ? XLSX.utils.sheet_to_json<Record<string, string>>(firstSheet, { defval: '' }) : [];
+        }
+      } catch {
+        setValidationMessage('The uploaded file could not be read. Use the provided Excel/CSV template and try again.');
+        return;
+      }
       const newUsers: User[] = rows
         .filter((row) => (row.UserName || '').trim())
         .map((row) => {
@@ -243,10 +282,11 @@ export default function TataOutboundUserManagement({ onTestCallSuccess }: TataOu
         return;
       }
       setUsers((current) => [...newUsers, ...current]);
-      setNotice({ title: 'Bulk Upload Complete', detail: `${newUsers.length} outbound user${newUsers.length === 1 ? '' : 's'} added successfully.` });
-      setTimeout(() => setNotice(null), 3000);
+      setBulkNotice({ title: 'Bulk Upload Complete', detail: `${newUsers.length} outbound user${newUsers.length === 1 ? '' : 's'} added successfully.` });
+      setTimeout(() => setBulkNotice(null), 2000);
     };
-    reader.readAsText(file);
+    reader.onerror = () => setValidationMessage('The uploaded file could not be read. Please try again.');
+    reader.readAsArrayBuffer(file);
   };
 
   return <div className="space-y-4">
@@ -341,7 +381,7 @@ export default function TataOutboundUserManagement({ onTestCallSuccess }: TataOu
         </button>
         <button
           type="button"
-          onClick={() => setConfirm({ action: users[menu].status === 'Active' ? 'Deactivate' : 'Activate', index: menu })}
+          onClick={() => { setConfirm({ action: users[menu].status === 'Active' ? 'Deactivate' : 'Activate', index: menu }); closeMenu(); }}
           className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-[12px] text-foreground hover:bg-muted transition-colors"
         >
           {users[menu].status === 'Active' ? <Pause size={12} className="text-muted-foreground" /> : <Play size={12} className="text-muted-foreground" />}
@@ -364,7 +404,7 @@ export default function TataOutboundUserManagement({ onTestCallSuccess }: TataOu
         <hr className="my-1 border-border" />
         <button
           type="button"
-          onClick={() => setConfirm({ action: 'Delete', index: menu })}
+          onClick={() => { setConfirm({ action: 'Delete', index: menu }); closeMenu(); }}
           className="flex items-center gap-2 w-full text-left px-3 py-1.5 text-[12px] text-danger hover:bg-danger-bg transition-colors"
         >
           <Trash2 size={12} />Delete User
@@ -395,6 +435,15 @@ export default function TataOutboundUserManagement({ onTestCallSuccess }: TataOu
 
           {/* Body */}
           <div className="flex-1 overflow-y-auto px-6 py-5">
+            {bulkNotice && (
+              <div role="status" className="mb-5 flex items-start gap-2.5 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3">
+                <CheckCircle2 size={16} className="mt-0.5 flex-shrink-0 text-emerald-600" />
+                <div>
+                  <p className="text-[12px] font-bold text-emerald-700">{bulkNotice.title}</p>
+                  <p className="mt-0.5 text-[11px] text-emerald-800">{bulkNotice.detail}</p>
+                </div>
+              </div>
+            )}
             {editingIndex === null && (
               <div className="mb-5 p-3.5 rounded-lg border border-dashed border-primary/30 bg-primary/5">
                 <div className="flex items-center justify-between gap-3 flex-wrap">

@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Modal from '@/components/ui/Modal';
 import ConnectorIcon, { ConnectorType, getConnectorLabel } from '@/components/ui/ConnectorIcon';
-import { Search, ArrowRight, Star, Zap, Plus, ChevronDown, CheckCircle } from 'lucide-react';
+import { Search, ArrowRight, Star, Zap, Plus, ChevronDown, CheckCircle, X } from 'lucide-react';
 
 interface CatalogEntry {
   type: ConnectorType;
@@ -242,14 +242,16 @@ function AddConnectorForm({ onSave, onCancel }: AddConnectorFormProps) {
 interface IntegrationCatalogModalProps {
   open: boolean;
   onClose: () => void;
+  presentation?: 'modal' | 'drawer';
 }
 
-export default function IntegrationCatalogModal({ open, onClose }: IntegrationCatalogModalProps) {
+export default function IntegrationCatalogModal({ open, onClose, presentation = 'modal' }: IntegrationCatalogModalProps) {
   const router = useRouter();
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState<string>('all');
   const [showAddForm, setShowAddForm] = useState(false);
   const [customConnectors, setCustomConnectors] = useState<CatalogEntry[]>([]);
+  const drawerBodyRef = useRef<HTMLDivElement>(null);
 
   const allConnectors = [...ALL_CONNECTORS, ...customConnectors];
 
@@ -279,15 +281,28 @@ export default function IntegrationCatalogModal({ open, onClose }: IntegrationCa
 
   const totalCount = allConnectors.length;
   const categories = [...CATALOG_CATEGORIES.map((c) => c.label), ...(customConnectors.length > 0 ? ['Custom'] : [])];
+  const closeCatalog = useCallback(() => {
+    setShowAddForm(false);
+    onClose();
+  }, [onClose]);
 
-  return (
-    <Modal
-      open={open}
-      onClose={() => { setShowAddForm(false); onClose(); }}
-      title={showAddForm ? 'Add New Connector' : 'Add New Integration'}
-      subtitle={showAddForm ? 'Configure a custom connector with your credentials' : `Choose from ${totalCount} connectors across categories`}
-      size="2xl"
-    >
+  useEffect(() => {
+    if (!open || presentation !== 'drawer') return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') closeCatalog();
+    };
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    drawerBodyRef.current?.scrollTo({ top: 0 });
+    document.addEventListener('keydown', handleEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener('keydown', handleEscape);
+    };
+  }, [closeCatalog, open, presentation]);
+
+  const catalogContent = (
+    <>
       {showAddForm ? (
         <AddConnectorForm
           onSave={handleSaveConnector}
@@ -413,6 +428,54 @@ export default function IntegrationCatalogModal({ open, onClose }: IntegrationCa
           </div>
         </>
       )}
+    </>
+  );
+
+  if (presentation === 'drawer') {
+    if (!open) return null;
+    const title = showAddForm ? 'Add New Connector' : 'Add New Integration';
+    const subtitle = showAddForm
+      ? 'Configure a custom connector with your credentials'
+      : `Choose from ${totalCount} connectors across categories`;
+
+    return (
+      <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="integration-catalog-title">
+        <button
+          type="button"
+          aria-label="Close integration panel"
+          onClick={closeCatalog}
+          className="absolute inset-0 h-full w-full bg-black/40 backdrop-blur-[1px]"
+        />
+        <aside className="absolute inset-y-0 right-0 flex w-full flex-col border-l border-border bg-card shadow-2xl md:w-[50vw]">
+          <div className="flex min-h-[76px] flex-shrink-0 items-start justify-between border-b border-border bg-card px-5 py-4 sm:px-6">
+            <div>
+              <h2 id="integration-catalog-title" className="text-[17px] font-semibold text-foreground">{title}</h2>
+              <p className="mt-1 text-[12px] text-muted-foreground">{subtitle}</p>
+            </div>
+            <button
+              type="button"
+              onClick={closeCatalog}
+              className="ml-4 rounded-md p-2 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              aria-label="Close integration panel"
+            >
+              <X size={18} />
+            </button>
+          </div>
+          <div ref={drawerBodyRef} className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">{catalogContent}</div>
+        </aside>
+      </div>
+    );
+  }
+
+  return (
+    <Modal
+      open={open}
+      onClose={closeCatalog}
+      title={showAddForm ? 'Add New Connector' : 'Add New Integration'}
+      subtitle={showAddForm ? 'Configure a custom connector with your credentials' : `Choose from ${totalCount} connectors across categories`}
+      size="2xl"
+    >
+      {catalogContent}
     </Modal>
   );
 }

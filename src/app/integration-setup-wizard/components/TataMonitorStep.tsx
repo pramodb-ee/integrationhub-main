@@ -3,15 +3,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { toast } from 'sonner';
-import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from 'recharts';
-import ConnectorIcon, { ConnectorType } from '@/components/ui/ConnectorIcon';
+import { Area, AreaChart, CartesianGrid, Cell, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import ConnectorIcon, { ConnectorType, getConnectorLabel } from '@/components/ui/ConnectorIcon';
 import StatusBadge from '@/components/ui/StatusBadge';
 import TataAlertConfigModal from './TataAlertConfigModal';
 import TataCallLogsPanel from './TataCallLogsPanel';
 import IntegrationCatalogModal from '@/app/components/IntegrationCatalogModal';
 import {
   Activity, AlertTriangle, Bell, CheckCircle, ChevronDown, ChevronLeft, ChevronRight,
-  Clock, Download, ExternalLink, History, Loader2, Plus, RefreshCw, Search, TrendingUp, X, XCircle, Zap,
+  Clock, Download, ExternalLink, History, Loader2, PhoneCall, PhoneMissed, Plus, RefreshCw, Search,
+  Server, ShieldCheck, TrendingUp, Users, X, XCircle, Zap,
 } from 'lucide-react';
 
 type LeadSyncStatus = 'success' | 'failed';
@@ -74,11 +75,31 @@ const STATUS_META: Record<LeadSyncStatus, { label: string; classes: string; icon
   failed: { label: 'Failed', classes: 'bg-danger-bg text-danger border-danger-border', icon: XCircle },
 };
 
+const CALL_TREND = [
+  { time: '09:00', attempted: 42, connected: 34, missed: 5 },
+  { time: '10:00', attempted: 58, connected: 47, missed: 7 },
+  { time: '11:00', attempted: 76, connected: 61, missed: 9 },
+  { time: '12:00', attempted: 64, connected: 52, missed: 8 },
+  { time: '13:00', attempted: 81, connected: 69, missed: 7 },
+  { time: '14:00', attempted: 93, connected: 77, missed: 10 },
+  { time: '15:00', attempted: 72, connected: 59, missed: 8 },
+];
+
+const SERVICE_CHECKS = [
+  { label: 'TATA Voice API', detail: 'Last check 18 sec ago', status: 'Operational', latency: '184 ms' },
+  { label: 'Outbound Dialer', detail: '24 active channels', status: 'Operational', latency: '231 ms' },
+  { label: 'CRM Lead Sync', detail: 'Last sync 6 sec ago', status: 'Operational', latency: '284 ms' },
+  { label: 'Call Recording', detail: '99.8% delivery', status: 'Operational', latency: '1.2 sec' },
+];
+
 interface TataMonitorStepProps {
   integrationName?: string;
+  connectorType?: ConnectorType;
+  onBack?: () => void;
 }
 
-export default function TataMonitorStep({ integrationName = 'TATA IVR Integration' }: TataMonitorStepProps) {
+export default function TataMonitorStep({ integrationName, connectorType = 'tata', onBack }: TataMonitorStepProps) {
+  const resolvedName = integrationName || `${getConnectorLabel(connectorType)} Integration`;
   const [alertModalOpen, setAlertModalOpen] = useState(false);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [callLogsOpen, setCallLogsOpen] = useState(false);
@@ -100,17 +121,22 @@ export default function TataMonitorStep({ integrationName = 'TATA IVR Integratio
   const successCount = leads.filter((l) => l.status === 'success').length;
   const failedCount = totalLeads - successCount;
   const successRate = totalLeads > 0 ? (successCount / totalLeads) * 100 : 0;
+  const totalCalls = CALL_TREND.reduce((sum, item) => sum + item.attempted, 0);
+  const connectedCalls = CALL_TREND.reduce((sum, item) => sum + item.connected, 0);
+  const missedCalls = CALL_TREND.reduce((sum, item) => sum + item.missed, 0);
+  const otherCalls = totalCalls - connectedCalls - missedCalls;
 
   const kpis = [
-    { id: 'k-total', label: 'Total Leads Synced', value: totalLeads.toLocaleString(), icon: Zap, iconBg: '#EFF6FF', iconColor: '#2563EB' },
-    { id: 'k-success', label: 'Success Rate', value: `${successRate.toFixed(1)}%`, icon: TrendingUp, iconBg: '#F0FDF4', iconColor: '#16A34A' },
-    { id: 'k-failed', label: 'Failed Syncs', value: failedCount.toLocaleString(), icon: XCircle, iconBg: '#FEF2F2', iconColor: '#DC2626' },
-    { id: 'k-latency', label: 'Avg Sync Time', value: '284ms', icon: Clock, iconBg: '#FFFBEB', iconColor: '#D97706' },
+    { id: 'k-total', label: 'Leads Called', value: totalCalls.toLocaleString(), helper: 'Today', icon: PhoneCall, iconBg: '#EFF6FF', iconColor: '#2563EB' },
+    { id: 'k-connected', label: 'Connected Calls', value: connectedCalls.toLocaleString(), helper: `${((connectedCalls / totalCalls) * 100).toFixed(1)}% connect rate`, icon: TrendingUp, iconBg: '#F0FDF4', iconColor: '#16A34A' },
+    { id: 'k-missed', label: 'Missed Calls', value: missedCalls.toLocaleString(), helper: `${((missedCalls / totalCalls) * 100).toFixed(1)}% of attempts`, icon: PhoneMissed, iconBg: '#FEF2F2', iconColor: '#DC2626' },
+    { id: 'k-agents', label: 'Active Agents', value: '24 / 28', helper: '4 unavailable', icon: Users, iconBg: '#FFF7ED', iconColor: '#C2410C' },
   ];
 
   const outcomeData = [
-    { name: 'Success', value: successCount, color: 'var(--success)' },
-    { name: 'Failed', value: failedCount, color: 'var(--danger)' },
+    { name: 'Connected', value: connectedCalls, color: '#16a34a' },
+    { name: 'Missed', value: missedCalls, color: '#dc2626' },
+    { name: 'Busy / Failed', value: otherCalls, color: '#d97706' },
   ];
 
   const filteredLeads = useMemo(() => leads.filter((lead) => {
@@ -150,17 +176,17 @@ export default function TataMonitorStep({ integrationName = 'TATA IVR Integratio
 
   return (
     <div className="space-y-5">
-      <TataAlertConfigModal open={alertModalOpen} onClose={() => setAlertModalOpen(false)} integrationName={integrationName} />
+      <TataAlertConfigModal open={alertModalOpen} onClose={() => setAlertModalOpen(false)} integrationName={resolvedName} />
       <TataCallLogsPanel open={callLogsOpen} onClose={() => setCallLogsOpen(false)} />
       <IntegrationCatalogModal open={catalogOpen} onClose={() => setCatalogOpen(false)} />
 
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div className="flex items-center gap-3">
-          <ConnectorIcon type={'tata' as ConnectorType} size={40} />
+          <ConnectorIcon type={connectorType} size={40} />
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-[16px] font-semibold text-foreground">{integrationName}</h2>
+              <h2 className="text-[16px] font-semibold text-foreground">{resolvedName}</h2>
               <StatusBadge status="healthy" size="sm" />
             </div>
             <div className="flex items-center gap-1.5 text-[11px] text-success mt-0.5">
@@ -200,17 +226,43 @@ export default function TataMonitorStep({ integrationName = 'TATA IVR Integratio
                 </div>
               </div>
               <p className="text-[22px] font-bold font-tabular leading-none text-foreground">{card.value}</p>
+              <p className="mt-1.5 text-[10px] text-muted-foreground">{card.helper}</p>
             </div>
           );
         })}
+      </div>
+
+      {/* Operational overview — patterns used by enterprise CRM health dashboards */}
+      <div className="grid grid-cols-1 xl:grid-cols-[1.6fr_1fr] gap-4">
+        <div className="card-base p-5">
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div><h3 className="text-[14px] font-semibold text-foreground">Call Volume &amp; Outcomes</h3><p className="text-[11px] text-muted-foreground mt-0.5">Hourly lead-call activity for today</p></div>
+            <span className="rounded-full border border-border bg-muted/50 px-2.5 py-1 text-[10px] font-semibold text-muted-foreground">Today · IST</span>
+          </div>
+          <ResponsiveContainer width="100%" height={220}>
+            <AreaChart data={CALL_TREND} margin={{ left: -20, right: 8, top: 8 }}>
+              <defs><linearGradient id="attempted" x1="0" y1="0" x2="0" y2="1"><stop offset="5%" stopColor="#2563eb" stopOpacity={0.25}/><stop offset="95%" stopColor="#2563eb" stopOpacity={0}/></linearGradient></defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" vertical={false}/><XAxis dataKey="time" tick={{ fontSize: 10 }} stroke="var(--muted-foreground)"/><YAxis tick={{ fontSize: 10 }} stroke="var(--muted-foreground)"/>
+              <Tooltip contentStyle={{ background: 'var(--card)', border: '1px solid var(--border)', borderRadius: 8, fontSize: 11 }}/>
+              <Area type="monotone" dataKey="attempted" name="Attempted" stroke="#2563eb" fill="url(#attempted)" strokeWidth={2}/>
+              <Area type="monotone" dataKey="connected" name="Connected" stroke="#16a34a" fill="transparent" strokeWidth={2}/>
+              <Area type="monotone" dataKey="missed" name="Missed" stroke="#dc2626" fill="transparent" strokeWidth={2}/>
+            </AreaChart>
+          </ResponsiveContainer>
+          <div className="flex flex-wrap gap-4 mt-2 text-[10px] text-muted-foreground">{[['#2563eb','Attempted'],['#16a34a','Connected'],['#dc2626','Missed']].map(([color,label]) => <span key={label} className="flex items-center gap-1.5"><i className="w-2 h-2 rounded-full" style={{backgroundColor:color}} />{label}</span>)}</div>
+        </div>
+        <div className="card-base overflow-hidden">
+          <div className="flex items-center justify-between p-4 border-b border-border bg-success-bg/40"><div className="flex items-center gap-2"><ShieldCheck size={16} className="text-success"/><div><h3 className="text-[13px] font-semibold">Service Health</h3><p className="text-[10px] text-muted-foreground">All systems operational</p></div></div><span className="text-[10px] font-bold text-success">99.98% uptime</span></div>
+          <div className="divide-y divide-border">{SERVICE_CHECKS.map((service) => <div key={service.label} className="flex items-center gap-3 px-4 py-3"><span className="w-7 h-7 rounded-lg bg-success-bg flex items-center justify-center"><Server size={13} className="text-success"/></span><div className="flex-1 min-w-0"><p className="text-[11px] font-semibold truncate">{service.label}</p><p className="text-[9px] text-muted-foreground">{service.detail}</p></div><div className="text-right"><p className="text-[10px] font-semibold text-success">{service.status}</p><p className="text-[9px] text-muted-foreground">{service.latency}</p></div></div>)}</div>
+        </div>
       </div>
 
       {/* Outcomes + recent failures */}
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_1.4fr] gap-4">
         <div className="card-base p-5">
           <div className="mb-3">
-            <h3 className="text-[14px] font-semibold text-foreground">Sync Outcomes</h3>
-            <p className="text-[11px] text-muted-foreground mt-0.5">Since publish</p>
+            <h3 className="text-[14px] font-semibold text-foreground">Call Outcomes</h3>
+            <p className="text-[11px] text-muted-foreground mt-0.5">Today&apos;s disposition mix</p>
           </div>
           <div className="flex items-center gap-5">
             <div className="relative flex-shrink-0">
@@ -223,8 +275,8 @@ export default function TataMonitorStep({ integrationName = 'TATA IVR Integratio
                 </PieChart>
               </ResponsiveContainer>
               <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-[16px] font-bold text-foreground font-tabular">{totalLeads}</span>
-                <span className="text-[9px] text-muted-foreground">leads</span>
+                <span className="text-[16px] font-bold text-foreground font-tabular">{totalCalls}</span>
+                <span className="text-[9px] text-muted-foreground">calls</span>
               </div>
             </div>
             <div className="flex-1 space-y-1.5 min-w-0">
@@ -233,7 +285,7 @@ export default function TataMonitorStep({ integrationName = 'TATA IVR Integratio
                   <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: item.color }} />
                   <span className="text-[11px] text-muted-foreground flex-1 truncate">{item.name}</span>
                   <span className="text-[11px] font-semibold text-foreground font-tabular">
-                    {totalLeads > 0 ? ((item.value / totalLeads) * 100).toFixed(0) : 0}%
+                    {totalCalls > 0 ? ((item.value / totalCalls) * 100).toFixed(0) : 0}%
                   </span>
                 </div>
               ))}
@@ -400,6 +452,13 @@ export default function TataMonitorStep({ integrationName = 'TATA IVR Integratio
       {/* Action buttons */}
       <div className="flex items-center flex-wrap gap-3 pt-1 border-t border-border">
         <button
+          type="button"
+          onClick={onBack}
+          className="flex items-center gap-2 px-4 py-2.5 mt-4 bg-card border border-border text-[13px] font-medium rounded-lg hover:bg-muted active:scale-95 transition-all"
+        >
+          <ChevronLeft size={14} />Back to Previous
+        </button>
+        <button
           onClick={() => setCallLogsOpen(true)}
           className="flex items-center gap-2 px-4 py-2.5 mt-4 bg-card border border-border text-[13px] font-medium rounded-lg hover:bg-muted active:scale-95 transition-all"
         >
@@ -418,11 +477,6 @@ export default function TataMonitorStep({ integrationName = 'TATA IVR Integratio
             <Activity size={14} />
             Open Full Monitoring
             <ExternalLink size={11} />
-          </button>
-        </Link>
-        <Link href="/" className="mt-4">
-          <button className="flex items-center gap-2 px-5 py-2.5 bg-primary text-white text-[13px] font-semibold rounded-lg hover:bg-primary/90 active:scale-95 transition-all shadow-sm">
-            Back to Integration Center
           </button>
         </Link>
         <button
