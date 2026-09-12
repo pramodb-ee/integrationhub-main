@@ -9,7 +9,7 @@ import { TableSkeleton } from '@/components/ui/LoadingSkeleton';
 import {
   ChevronUp, ChevronDown, MoreHorizontal, Edit2, Pause, Trash2,
   Eye, ArrowUpDown, CheckSquare, Square, Activity, RefreshCw,
-  Play, Settings2, GripVertical, Check, AlertCircle, Loader2
+  Play, Settings2, GripVertical, Check, AlertCircle, Loader2, FileText
 } from 'lucide-react';
 import Link from 'next/link';
 
@@ -32,15 +32,32 @@ interface IntegrationTableProps {
   integrations: Integration[];
   loading?: boolean;
   onRefresh?: () => void;
+  onEdit?: (integration: Integration) => void;
   onViewDetails?: (integration: Integration) => void;
+  onViewLogs?: (integration: Integration) => void;
   onDelete?: (id: string) => void;
   onOpenTata?: () => void;
 }
 
 type SortKey = keyof Integration;
-const TELEPHONY_TYPES: ConnectorType[] = ['ivr', 'tata', 'exotel', 'knowlarity', 'twilio', 'ozonetel', 'myoperator', 'cloudtalk', 'ringcentral', 'ivr-custom'];
+const TELEPHONY_TYPES: ConnectorType[] = ['ivr', 'tata', 'exotel', 'knowlarity', 'twilio', 'mcube', 'ozonetel', 'myoperator', 'cloudtalk', 'ringcentral', 'ivr-custom'];
 
-type ColumnId = 'name' | 'type' | 'status' | 'lastSync' | 'events24h' | 'successRate' | 'latencyMs' | 'owner' | 'environment' | 'errorCount';
+export function buildMonitorHref(integration: Integration): string {
+  const params = new URLSearchParams({
+    id: integration.id,
+    name: integration.name,
+    type: integration.type,
+    status: integration.status,
+    events24h: String(integration.events24h),
+    successRate: String(integration.successRate),
+    latencyMs: String(integration.latencyMs),
+    errorCount: String(integration.errorCount ?? 0),
+    lastSync: integration.lastSync,
+  });
+  return `/integration-monitoring?${params.toString()}`;
+}
+
+type ColumnId = 'name' | 'type' | 'status' | 'lastSync' | 'events24h' | 'successRate' | 'latencyMs' | 'owner' | 'errorCount';
 
 interface ColumnDef {
   id: ColumnId;
@@ -57,13 +74,12 @@ const ALL_COLUMNS: ColumnDef[] = [
   { id: 'successRate', label: 'Success Rate',      sortKey: 'successRate' },
   { id: 'latencyMs',   label: 'Latency',           sortKey: 'latencyMs' },
   { id: 'owner',       label: 'Owner',             sortKey: 'owner' },
-  { id: 'environment', label: 'Env',               sortKey: 'environment' },
   { id: 'errorCount',  label: 'Error Count',       sortKey: 'errorCount' },
 ];
 
-const DEFAULT_VISIBLE: ColumnId[] = ['name', 'type', 'status', 'lastSync', 'events24h', 'successRate', 'latencyMs', 'owner', 'environment'];
+const DEFAULT_VISIBLE: ColumnId[] = ['name', 'type', 'status', 'lastSync', 'events24h', 'successRate', 'latencyMs', 'owner'];
 
-export default function IntegrationTable({ integrations, loading, onRefresh, onViewDetails, onDelete, onOpenTata }: IntegrationTableProps) {
+export default function IntegrationTable({ integrations, loading, onRefresh, onEdit, onViewDetails, onViewLogs, onDelete, onOpenTata }: IntegrationTableProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>('lastSync');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
@@ -273,14 +289,6 @@ export default function IntegrationTable({ integrations, loading, onRefresh, onV
       case 'owner':
         return (
           <td key={`cell-${integration.id}-owner`} className="px-3 py-3 text-[12px] text-muted-foreground">{integration.owner}</td>
-        );
-      case 'environment':
-        return (
-          <td key={`cell-${integration.id}-environment`} className="px-3 py-3">
-            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${envColor(integration.environment)}`}>
-              {integration.environment}
-            </span>
-          </td>
         );
       case 'errorCount':
         return (
@@ -495,7 +503,7 @@ export default function IntegrationTable({ integrations, loading, onRefresh, onV
                     <td className="px-3 py-3">
                       <div className="flex items-center gap-1">
                         {/* View Monitoring */}
-                        <Link href="/integration-monitoring">
+                        <Link href={buildMonitorHref(integration)}>
                           <button
                             className="flex items-center gap-1 h-7 px-2 text-[11px] font-medium rounded-md bg-muted hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors border border-transparent hover:border-primary/20"
                             title="View Monitoring"
@@ -505,15 +513,15 @@ export default function IntegrationTable({ integrations, loading, onRefresh, onV
                           </button>
                         </Link>
                         {/* Edit Integration */}
-                        <Link href="/integration-setup-wizard">
-                          <button
+                        <React.Fragment>
+                          <button onClick={(event) => { event.stopPropagation(); onEdit?.(integration); }}
                             className="flex items-center gap-1 h-7 px-2 text-[11px] font-medium rounded-md bg-muted hover:bg-primary/10 text-muted-foreground hover:text-primary transition-colors border border-transparent hover:border-primary/20"
                             title="Edit Integration"
                           >
                             <Edit2 size={12} />
                             <span className="hidden xl:block">Edit</span>
                           </button>
-                        </Link>
+                        </React.Fragment>
                         {/* Pause / Resume */}
                         <button
                           onClick={(e) => togglePause(integration.id, e)}
@@ -542,6 +550,12 @@ export default function IntegrationTable({ integrations, loading, onRefresh, onV
                                 onClick={() => { setOpenMenu(null); onViewDetails?.(integration); }}
                               >
                                 <Eye size={12} /> View Details
+                              </button>
+                              <button
+                                className="flex items-center gap-2 w-full px-3 py-1.5 text-[12px] hover:bg-muted transition-colors"
+                                onClick={() => { setOpenMenu(null); onViewLogs?.(integration); }}
+                              >
+                                <FileText size={12} /> View Logs
                               </button>
                               <hr className="my-1 border-border" />
                               <button

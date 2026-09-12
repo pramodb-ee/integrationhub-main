@@ -13,9 +13,10 @@ const STEPS = [
 interface WizardStepperProps {
   currentStep: number;
   labels?: string[];
+  descriptions?: string[];
 }
 
-export default function WizardStepper({ currentStep, labels = STEPS.map((step) => step.label) }: WizardStepperProps) {
+export default function WizardStepper({ currentStep, labels = STEPS.map((step) => step.label), descriptions }: WizardStepperProps) {
   return (
     <div className="card-base p-4">
       <div className="flex items-center">
@@ -43,7 +44,7 @@ export default function WizardStepper({ currentStep, labels = STEPS.map((step) =
                     {label}
                   </p>
                   <p className="text-[10px] text-muted-foreground leading-tight mt-0.5 hidden md:block">
-                    {STEPS[idx]?.description || 'Integration step'}
+                    {(descriptions ? descriptions[idx] : STEPS[idx]?.description) || 'Integration step'}
                   </p>
                 </div>
               </div>

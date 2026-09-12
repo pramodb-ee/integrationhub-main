@@ -1,5 +1,6 @@
 'use client';
 
+import { useSetupState } from '@/app/components/integrationSetupStore';
 import React, { useState } from 'react';
 import ERPWizardStepper from './ERPWizardStepper';
 import ERPAuthStep from './ERPAuthStep';
@@ -10,6 +11,8 @@ import ERPMonitorStep from './ERPMonitorStep';
 import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
 import Link from 'next/link';
 import { ERPId, AuthType, Environment } from './erpRegistry';
+import { addActivatedIntegration } from '@/app/components/activatedIntegrationsStore';
+import type { Integration } from '@/app/components/IntegrationTable';
 
 const STEP_LABELS = [
   'Connect & Authenticate',
@@ -26,21 +29,21 @@ export default function ERPWizardContent() {
   const selectedERP: ERPId = 'custom-erp';
 
   // Step 2
-  const [authData, setAuthData] = useState<{
+  const [authData, setAuthData] = useSetupState<{
     environment: Environment;
     authType: AuthType | null;
     credentials: Record<string, string>;
-  } | null>(null);
+  } | null>('erp-crm', 'ERPWizardContent.authData', null);
 
   // Step 3 — we track minimal state here; the step manages its own internal state
   // We just need to know if user has visited step 3 to allow Next
   const [step3Visited, setStep3Visited] = useState(false);
 
   // Step 4
-  const [scheduleConfig, setScheduleConfig] = useState<ScheduleConfig | null>(null);
+  const [scheduleConfig, setScheduleConfig] = useSetupState<ScheduleConfig | null>('erp-crm', 'ERPWizardContent.scheduleConfig', null);
 
   // Summary data (passed from step 3 via ref-like approach — we use simple defaults)
-  const [configuration, setConfiguration] = useState({
+  const [configuration, setConfiguration] = useSetupState('erp-crm', 'ERPWizardContent.configuration', {
     curlConfigured: false,
     mappingCount: 0,
     staticFieldCount: 0,
@@ -62,6 +65,24 @@ export default function ERPWizardContent() {
   const handleAuthNoAuth = () => {
     // Allow proceeding without auth
     setAuthData({ environment: 'production', authType: null, credentials: {} });
+  };
+
+  const handleActivate = () => {
+    const row: Integration = {
+      id: `int-erp-crm-${Date.now()}`,
+      name: 'ERP CRM Integration',
+      type: 'erp-crm',
+      status: 'active',
+      lastSync: 'Just now',
+      events24h: 0,
+      successRate: 0,
+      latencyMs: 0,
+      owner: 'Pramod Bhujbal',
+      created: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      environment: authData?.environment === 'sandbox' ? 'staging' : 'production',
+      errorCount: 0,
+    };
+    addActivatedIntegration(row);
   };
 
   const handleNext = () => {
@@ -123,7 +144,7 @@ export default function ERPWizardContent() {
             formatMappingCount={configuration.formatMappingCount}
             defaultValueCount={configuration.defaultValueCount}
             canActivate={Boolean(scheduleConfig?.frequency) && (configuration.mappingCount > 0 || configuration.curlConfigured)}
-            onActivate={() => {}}
+            onActivate={handleActivate}
             onGoToMonitor={() => setCurrentStep(4)}
           />
         );

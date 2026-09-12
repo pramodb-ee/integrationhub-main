@@ -1,44 +1,75 @@
 'use client';
 
 import React, { useState } from 'react';
+import { isRemovedConnector } from '@/app/components/removedConnectors';
+import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
 import MonitoringKPIRow from './MonitoringKPIRow';
 import HealthTimelineChart from './HealthTimelineChart';
 import ErrorBreakdownChart from './ErrorBreakdownChart';
 import LatencyTrendChart from './LatencyTrendChart';
 import EventLogTable from './EventLogTable';
-import ConnectorIcon, { ConnectorType } from '@/components/ui/ConnectorIcon';
+import StatusBadge from '@/components/ui/StatusBadge';
+import ConnectorIcon, { ConnectorType, getConnectorLabel } from '@/components/ui/ConnectorIcon';
 import { Search, Filter, RefreshCw, Download, X, ChevronDown, AlertTriangle, CheckCircle, Activity } from 'lucide-react';
 import Icon from '@/components/ui/AppIcon';
 
 
 const CONNECTOR_TYPES: ConnectorType[] = [
   'facebook', 'google-ads', 'google-forms', 'justdial', 'linkedin',
-  'wordpress', 'api', 'js', 'php', 'id-based',
-  'twilio', 'ozonetel', 'myoperator', 'cloudtalk', 'ringcentral', 'ivr', 'ivr-custom',
+  'wordpress', 'api', 'js', 'php',
+  'twilio', 'mcube', 'ozonetel', 'myoperator', 'cloudtalk', 'ringcentral', 'ivr', 'ivr-custom',
   'erp-crm', 'zapier'
 ];
 
 export default function MonitoringContent() {
+  const searchParams = useSearchParams();
+
+  // When arriving from an integration's "Monitor" button, the URL carries that
+  // integration's own real stats — the dashboard locks to it instead of showing
+  // the all-integrations mock data, so numbers stay consistent with the table.
+  const lockedId = searchParams.get('id');
+  const lockedName = searchParams.get('name');
+  const lockedType = searchParams.get('type') as ConnectorType | null;
+  const lockedStatus = searchParams.get('status');
+  const lockedEvents24h = searchParams.get('events24h');
+  const lockedSuccessRate = searchParams.get('successRate');
+  const lockedLatencyMs = searchParams.get('latencyMs');
+  const lockedErrorCount = searchParams.get('errorCount');
+  const lockedLastSync = searchParams.get('lastSync');
+  const isLocked = Boolean(lockedId && lockedName && lockedType);
+
   const [statusFilter, setStatusFilter] = useState('all');
-  const [connectorFilter, setConnectorFilter] = useState('all');
+  const [connectorFilter, setConnectorFilter] = useState(() => (isLocked && lockedType ? lockedType : 'all'));
   const [search, setSearch] = useState('');
   const [dateRange, setDateRange] = useState('24h');
   const [activeTab, setActiveTab] = useState<'overview' | 'logs' | 'health' | 'alerts'>('overview');
 
-  const stats = {
-    totalEvents: 17842,
-    successRate: 96.8,
-    failedCount: 67,
-    avgLatency: 387,
-    activeIntegrations: 10,
-    p99Latency: 1280,
-  };
+  if (isRemovedConnector(searchParams.get('type'))) return <div className="card-base p-6"><p>This connector is no longer available.</p><Link href="/" className="mt-4 inline-block text-primary">Back to Integration Center</Link></div>;
+
+  const stats = isLocked
+    ? {
+        totalEvents: Number(lockedEvents24h) || 0,
+        successRate: Number(lockedSuccessRate) || 0,
+        failedCount: Number(lockedErrorCount) || 0,
+        avgLatency: Number(lockedLatencyMs) || 0,
+        activeIntegrations: lockedStatus === 'active' || lockedStatus === 'healthy' ? 1 : 0,
+        p99Latency: Math.round((Number(lockedLatencyMs) || 0) * 2.4),
+      }
+    : {
+        totalEvents: 17842,
+        successRate: 96.8,
+        failedCount: 67,
+        avgLatency: 387,
+        activeIntegrations: 10,
+        p99Latency: 1280,
+      };
 
   const alertItems = [
     { id: 'alert-001', severity: 'critical', integration: 'Facebook Lead Gen - Retarget', connector: 'facebook' as ConnectorType, message: 'Webhook delivery failed — access token expired. 0 events received in 6h.', time: '6 hr ago' },
     { id: 'alert-002', severity: 'warning', integration: 'IVR Lead Capture - Tier1', connector: 'ivr' as ConnectorType, message: 'Latency above threshold — avg 1,840ms (SLA: 1,000ms). 4 of last 10 events exceeded SLA.', time: '28 min ago' },
     { id: 'alert-003', severity: 'warning', integration: 'PHP Webhook - Legacy CRM', connector: 'php' as ConnectorType, message: 'Success rate degraded to 72.4% — field schema mismatch on 2 fields.', time: '1 day ago' },
-  ];
+  ].filter((alert) => !isLocked || alert.integration === lockedName);
 
   const tabs = [
     { id: 'overview' as const, label: 'Overview', icon: Activity },
@@ -54,7 +85,9 @@ export default function MonitoringContent() {
         <div>
           <h1 className="text-[22px] font-semibold text-foreground tracking-tight">Integration Monitoring</h1>
           <p className="text-[13px] text-muted-foreground mt-0.5">
-            Real-time health, event logs, and performance across all integrations
+            {isLocked
+              ? `Logs, metrics, and activity for ${lockedName}`
+              : 'Real-time health, event logs, and performance across all integrations'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -81,6 +114,26 @@ export default function MonitoringContent() {
           </button>
         </div>
       </div>
+
+      {/* Locked-integration banner */}
+      {isLocked && lockedType && (
+        <div className="flex items-center gap-3 p-3.5 rounded-lg bg-primary/5 border border-primary/20">
+          <ConnectorIcon type={lockedType} size={32} />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="text-[13px] font-semibold text-foreground">{lockedName}</span>
+              {lockedStatus && <StatusBadge status={lockedStatus as Parameters<typeof StatusBadge>[0]['status']} size="sm" />}
+              <span className="text-[11px] text-muted-foreground">{getConnectorLabel(lockedType)}</span>
+            </div>
+            <p className="text-[11px] text-muted-foreground mt-0.5">
+              Showing this integration only{lockedLastSync ? ` · Last sync ${lockedLastSync}` : ''}
+            </p>
+          </div>
+          <Link href="/integration-monitoring" className="flex items-center gap-1.5 h-8 px-3 text-[12px] font-medium bg-card border border-border rounded-md hover:bg-muted transition-colors text-muted-foreground flex-shrink-0">
+            <X size={12} /> View All Integrations
+          </Link>
+        </div>
+      )}
 
       {/* KPI Row */}
       <MonitoringKPIRow stats={stats} />
@@ -189,6 +242,7 @@ export default function MonitoringContent() {
           </div>
           <EventLogTable
             filters={{ status: statusFilter, connector: connectorFilter, search }}
+            lockedIntegrationName={isLocked ? (lockedName ?? undefined) : undefined}
           />
         </div>
       )}
@@ -214,14 +268,25 @@ export default function MonitoringContent() {
                   </tr>
                 </thead>
                 <tbody>
-                  {[
+                  {(isLocked && lockedType
+                    ? [{
+                        id: lockedId ?? 'hrow-locked',
+                        name: lockedName ?? '',
+                        connector: lockedType,
+                        successRate: Number(lockedSuccessRate) || 0,
+                        latency: Number(lockedLatencyMs) || 0,
+                        events: Number(lockedEvents24h) || 0,
+                        lastEvent: lockedLastSync ?? '—',
+                        score: Math.max(0, Math.min(100, Math.round((Number(lockedSuccessRate) || 0) - (Number(lockedErrorCount) || 0)))),
+                      }]
+                    : [
                     { id: 'hrow-001', name: 'Facebook Lead Gen - Main', connector: 'facebook' as ConnectorType, successRate: 98.7, latency: 214, events: 1842, lastEvent: '3 min ago', score: 98 },
                     { id: 'hrow-002', name: 'Google Ads - Brand Campaign', connector: 'google-ads' as ConnectorType, successRate: 99.2, latency: 188, events: 2914, lastEvent: '11 min ago', score: 99 },
                     { id: 'hrow-003', name: 'IVR Lead Capture - Tier1', connector: 'ivr' as ConnectorType, successRate: 81.3, latency: 1840, events: 740, lastEvent: '2 hr ago', score: 62 },
                     { id: 'hrow-004', name: 'API Connector - Partner Portal', connector: 'api' as ConnectorType, successRate: 99.8, latency: 92, events: 2340, lastEvent: '8 min ago', score: 100 },
                     { id: 'hrow-005', name: 'Zapier - HubSpot Bridge', connector: 'zapier' as ConnectorType, successRate: 97.4, latency: 342, events: 1980, lastEvent: '1 hr ago', score: 95 },
                     { id: 'hrow-006', name: 'PHP Webhook - Legacy CRM', connector: 'php' as ConnectorType, successRate: 72.4, latency: 2100, events: 88, lastEvent: '1 day ago', score: 48 },
-                  ].map((row) => (
+                  ]).map((row) => (
                     <tr key={row.id} className="border-b border-border hover:bg-muted/30 transition-colors">
                       <td className="px-4 py-2.5 font-medium text-foreground">{row.name}</td>
                       <td className="px-4 py-2.5"><ConnectorIcon type={row.connector} size={22} /></td>

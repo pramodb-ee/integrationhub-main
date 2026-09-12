@@ -1,993 +1,714 @@
 'use client';
 
-import React, { useState } from 'react';
+import { useSetupState } from '@/app/components/integrationSetupStore';
+import React, { useMemo, useState } from 'react';
 import Link from 'next/link';
+import { toast } from 'sonner';
+import ConnectorIcon from '@/components/ui/ConnectorIcon';
+import WizardStepper from './WizardStepper';
+import { addActivatedIntegration, removeActivatedIntegration } from '@/app/components/activatedIntegrationsStore';
+import type { Integration } from '@/app/components/IntegrationTable';
 import {
-  ArrowLeft,
   ArrowRight,
-  Check,
   CheckCircle2,
-  AlertTriangle,
+  ChevronLeft,
+  FileSpreadsheet,
   Info,
+  Link2,
+  Loader2,
+  Mail,
+  Phone,
   Plus,
+  RefreshCw,
   RotateCcw,
   Search,
-  Trash2,
-  RefreshCw,
   ShieldCheck,
-  FileSpreadsheet,
+  Sparkles,
+  Tag,
+  Trash2,
+  UserCheck,
+  Zap,
 } from 'lucide-react';
-import ConnectorIcon from '@/components/ui/ConnectorIcon';
 
-const STEPS = [
-  'Account & Spreadsheet',
-  'Mapping & Defaults',
-  'Trigger & Authorization',
-  'Test & Verify',
-  'Activate & Monitor',
-];
+// ─── Google "G" logo — the standard multi-colour mark used on Sign in with Google buttons ──
+function GoogleLogo({ size = 20 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 48 48" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <path fill="#FFC107" d="M43.611,20.083H42V20H24v8h11.303c-1.649,4.657-6.08,8-11.303,8c-6.627,0-12-5.373-12-12 c0-6.627,5.373-12,12-12c3.059,0,5.842,1.154,7.961,3.039l5.657-5.657C34.046,6.053,29.268,4,24,4C12.955,4,4,12.955,4,24 c0,11.045,8.955,20,20,20c11.045,0,20-8.955,20-20C44,22.659,43.862,21.35,43.611,20.083z" />
+      <path fill="#FF3D00" d="M6.306,14.691l6.571,4.819C14.655,15.108,18.961,12,24,12c3.059,0,5.842,1.154,7.961,3.039 l5.657-5.657C34.046,6.053,29.268,4,24,4C16.318,4,9.656,8.337,6.306,14.691z" />
+      <path fill="#4CAF50" d="M24,44c5.166,0,9.86-1.977,13.409-5.192l-6.19-5.238C29.211,35.091,26.715,36,24,36 c-5.202,0-9.619-3.317-11.283-7.946l-6.522,5.025C9.505,39.556,16.227,44,24,44z" />
+      <path fill="#1976D2" d="M43.611,20.083H42V20H24v8h11.303c-0.792,2.237-2.231,4.166-4.087,5.571 c0.001-0.001,0.002-0.001,0.003-0.002l6.19,5.238C36.971,39.205,44,34,44,24C44,22.659,43.862,21.35,43.611,20.083z" />
+    </svg>
+  );
+}
+
+const STEPS = ['Account, Spreadsheet & Mapping', 'Trigger, Authorization & Publish'];
+const STEP_DESCRIPTIONS = ['Connect & map fields', 'Authorize & activate'];
+
 const FIELDS = ['Email', 'First Name', 'Last Name', 'Mobile Number', 'Course', 'City'];
-const SAMPLES = ['abc@gmail.com', 'Rahul', 'Sharma', '9876543210', 'BCA', 'Pune'];
-const SHEETS = ['Student Admission Form', 'Demo Form Responses', 'Lead Generation Form'];
-const DEFAULT_FIELDS = ['Lead Channel', 'Lead Source', 'Lead Campaign', 'Lead Medium'];
-const SCENARIOS = [
-  'Normal operation',
-  'Google account disconnected',
-  'Spreadsheet access denied',
-  'No columns detected',
-  'Required CRM field unmapped',
-  'Trigger creation failed',
-  'Authorization denied',
-  'CRM lead creation failed',
-  'Duplicate lead',
-];
-type Mapping = { source: string; crm: string; reviewed: boolean };
-type Lead = {
-  id: string;
-  name: string;
-  email: string;
-  status: string;
-  date: string;
-  reason: string;
+const SAMPLES: Record<string, string> = {
+  Email: 'abc@gmail.com',
+  'First Name': 'Rahul',
+  'Last Name': 'Sharma',
+  'Mobile Number': '9876543210',
+  Course: 'BCA',
+  City: 'Pune',
 };
-const initialMappings = (): Mapping[] =>
-  FIELDS.map((source) => ({ source, crm: source, reviewed: source !== 'City' }));
-const button =
-  'inline-flex items-center justify-center gap-2 rounded-md border border-blue-200 bg-white px-3 py-2 text-xs font-semibold text-blue-600 hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-40';
-const primary = `${button} !border-blue-600 !bg-blue-600 !text-white hover:!bg-blue-700`;
-const input =
-  'w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-300';
+const REQUIRED_FIELDS = ['Email', 'First Name', 'Mobile Number'];
 
-function Badge({
+const LINKED_SHEETS = [
+  { name: 'Student Admission Form', url: 'https://docs.google.com/spreadsheets/d/1AbCStudentAdm/edit' },
+  { name: 'Demo Form Responses', url: 'https://docs.google.com/spreadsheets/d/1DefDemoResp/edit' },
+  { name: 'Lead Generation Form', url: 'https://docs.google.com/spreadsheets/d/1GhiLeadGen/edit' },
+];
+
+const STATIC_FIELD_POOL = ['Lead Channel', 'Lead Source', 'Lead Campaign', 'Lead Medium'];
+
+const TEST_LEAD_POOL = [
+  { name: 'Rahul Sharma', email: 'rahul.sharma@gmail.com', mobile: '+91 98765 43210' },
+  { name: 'Ananya Iyer', email: 'ananya.iyer@gmail.com', mobile: '+91 91234 56780' },
+  { name: 'Karthik Rao', email: 'karthik.rao@gmail.com', mobile: '+91 99887 76655' },
+  { name: 'Priya Menon', email: 'priya.menon@gmail.com', mobile: '+91 97170 88342' },
+];
+
+type FieldMapping = { id: string; source: string; crm: string };
+type StaticField = { id: string; field: string; value: string };
+type TestLead = { id: string; name: string; email: string; mobile: string; receivedAt: string; addedToCrm: boolean };
+
+const initialMappings = (): FieldMapping[] => FIELDS.map((source) => ({ id: `map-${source}`, source, crm: source }));
+
+function SectionCard({
+  icon,
+  title,
+  subtitle,
+  action,
   children,
-  tone = 'success',
 }: {
+  icon: React.ReactNode;
+  title: React.ReactNode;
+  subtitle?: string;
+  action?: React.ReactNode;
   children: React.ReactNode;
-  tone?: 'success' | 'warning' | 'error';
 }) {
   return (
-    <span
-      className={`inline-flex items-center gap-1 rounded-full px-2 py-1 text-[11px] font-medium ${tone === 'success' ? 'bg-emerald-50 text-emerald-700' : tone === 'warning' ? 'bg-amber-50 text-amber-700' : 'bg-red-50 text-red-600'}`}
-    >
-      <span className="h-1.5 w-1.5 rounded-full bg-current" />
+    <div className="card-base p-5 space-y-4">
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-lg bg-primary/10 flex items-center justify-center text-primary flex-shrink-0">
+            {icon}
+          </div>
+          <div>
+            <p className="text-[14px] font-semibold text-foreground">{title}</p>
+            {subtitle && <p className="text-[11px] text-muted-foreground mt-0.5">{subtitle}</p>}
+          </div>
+        </div>
+        {action}
+      </div>
+      {children}
+    </div>
+  );
+}
+
+function Pill({ children, tone = 'neutral' }: { children: React.ReactNode; tone?: 'success' | 'warning' | 'danger' | 'neutral' }) {
+  const classes =
+    tone === 'success'
+      ? 'bg-success-bg text-success border-success-border'
+      : tone === 'warning'
+        ? 'bg-warning-bg text-warning border-warning-border'
+        : tone === 'danger'
+          ? 'bg-danger-bg text-danger border-danger-border'
+          : 'bg-muted text-muted-foreground border-border';
+  return (
+    <span className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold border ${classes}`}>
+      {tone === 'success' && <span className="w-1.5 h-1.5 rounded-full bg-current" />}
       {children}
     </span>
   );
 }
-function Panel({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <section className="space-y-4 rounded-lg border border-slate-200 bg-white p-5">
-      <h2 className="text-sm font-semibold text-slate-800">{title}</h2>
-      {children}
-    </section>
-  );
-}
-function Select({
-  label,
-  value,
-  options,
-  onChange,
-  disabled = false,
-}: {
-  label: string;
-  value: string;
-  options: string[];
-  onChange?: (value: string) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <label className="block space-y-1.5 text-xs font-medium text-slate-600">
-      <span>{label}</span>
-      <select
-        className={input}
-        value={value}
-        disabled={disabled}
-        onChange={(e) => onChange?.(e.target.value)}
-      >
-        {options.map((option) => (
-          <option key={option}>{option}</option>
-        ))}
-      </select>
-    </label>
-  );
-}
+
+const btnBase = 'inline-flex items-center justify-center gap-1.5 h-9 px-3.5 text-[12px] font-semibold rounded-lg transition-all disabled:opacity-50 disabled:cursor-not-allowed';
+const btnGhost = `${btnBase} bg-card border border-border text-foreground hover:bg-muted`;
+const btnPrimary = `${btnBase} bg-primary text-white hover:bg-primary/90`;
+const fieldInput = 'w-full h-9 px-3 text-[12px] bg-card border border-border rounded-md focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all';
 
 export default function GoogleFormsIntegrationFlow() {
   const [step, setStep] = useState(0);
-  const [connected, setConnected] = useState(false);
-  const [sheet, setSheet] = useState('');
+
+  // Connect Google Account
+  const [connecting, setConnecting] = useState(false);
+  const [connected, setConnected] = useSetupState('google-forms', 'GoogleFormsIntegrationFlow.connected', false);
+  const googleAccountEmail = 'admissions.team@gmail.com';
+
+  // Select Spreadsheet
+  const [sheetLinkInput, setSheetLinkInput] = useSetupState('google-forms', 'GoogleFormsIntegrationFlow.sheetLinkInput', '');
   const [search, setSearch] = useState('');
-  const [mappings, setMappings] = useState<Mapping[]>(initialMappings);
-  const [entity, setEntity] = useState(0);
-  const [defaults, setDefaults] = useState<Record<string, string>[]>([{}, {}, {}, {}]);
-  const [defaultField, setDefaultField] = useState('Lead Source');
-  const [trigger, setTrigger] = useState(false);
-  const [authorized, setAuthorized] = useState(false);
-  const [tested, setTested] = useState(false);
-  const [active, setActive] = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [tab, setTab] = useState('Overview');
-  const [scenario, setScenario] = useState('Normal operation');
-  const [error, setError] = useState('');
-  const [notice, setNotice] = useState('');
-  const [name, setName] = useState('Google Form Integration - Main');
-  const [config, setConfig] = useState({
-    source: 'Google Form',
-    name: 'Google Forms',
-    type: 'Online',
-    channel: 'Online',
-  });
-  const [leads, setLeads] = useState<Lead[]>([]);
-  const [lastSync, setLastSync] = useState('Never');
-  const [page, setPage] = useState(1);
+  const [sheet, setSheet] = useSetupState<{ name: string; url: string } | null>('google-forms', 'GoogleFormsIntegrationFlow.sheet', null);
+
+  // Field Mapping
+  const [mappings, setMappings] = useSetupState<FieldMapping[]>('google-forms', 'GoogleFormsIntegrationFlow.mappings', initialMappings);
+
+  // Static Field Mapping
+  const [staticFields, setStaticFields] = useSetupState<StaticField[]>('google-forms', 'GoogleFormsIntegrationFlow.staticFields', []);
+
+  // Trigger & Authorization
+  const [configuringTrigger, setConfiguringTrigger] = useState(false);
+  const [trigger, setTrigger] = useSetupState('google-forms', 'GoogleFormsIntegrationFlow.trigger', false);
+  const [authorizing, setAuthorizing] = useState(false);
+  const [authorized, setAuthorized] = useSetupState('google-forms', 'GoogleFormsIntegrationFlow.authorized', false);
+
+  // Test Lead
+  const [fetchingLead, setFetchingLead] = useState(false);
+  const [testLeads, setTestLeads] = useState<TestLead[]>([]);
+
+  const [activated, setActivated] = useState(false);
+  const [activatedId, setActivatedId] = useState<string | null>(null);
+
+  const usedCrmFields = useMemo(() => new Set(mappings.map((m) => m.crm).filter(Boolean)), [mappings]);
   const mappingValid =
-    ['Email', 'First Name', 'Mobile Number'].every((field) =>
-      mappings.some((row) => row.crm === field)
-    ) &&
-    mappings.every((row) => row.crm && row.reviewed) &&
+    REQUIRED_FIELDS.every((field) => mappings.some((row) => row.crm === field)) &&
+    mappings.every((row) => row.source && row.crm) &&
     new Set(mappings.map((row) => row.crm)).size === mappings.length;
-  const invalidate = () => {
-    setTested(false);
-    setError('');
-    setNotice('');
+
+  const availableStaticFields = STATIC_FIELD_POOL.filter((field) => !staticFields.some((sf) => sf.field === field));
+
+  const canProceedStep0 = connected && !!sheet && mappingValid;
+  const canActivate = trigger && authorized && testLeads.some((lead) => lead.addedToCrm);
+
+  const handleConnect = () => {
+    setConnecting(true);
+    setTimeout(() => {
+      setConnecting(false);
+      setConnected(true);
+      toast.success('Google account connected.');
+    }, 900);
   };
-  const fail = (message: string) => {
-    setError(message);
-    setNotice('');
-    setTested(false);
+
+  const linkSheet = (name: string, url: string) => {
+    setSheet({ name, url });
+    setMappings(initialMappings());
+    setSheetLinkInput('');
+    toast.success(`Spreadsheet linked: ${name}`);
   };
-  const changeScenario = (value: string) => {
-    setScenario(value);
-    invalidate();
-    if (value !== 'Normal operation')
-      setError(
-        value === 'Spreadsheet access denied'
-          ? "You don't have permission to access this spreadsheet."
-          : `${value}. Clear the demo issue and retry the affected action.`
-      );
-    if (value === 'Google account disconnected') {
-      setConnected(false);
-      setAuthorized(false);
+
+  const handleLinkByUrl = () => {
+    const value = sheetLinkInput.trim();
+    if (!value) return;
+    if (!value.includes('docs.google.com/spreadsheets')) {
+      toast.error('Enter a valid Google Sheets link (docs.google.com/spreadsheets/...).');
+      return;
     }
-    if (value === 'Trigger creation failed') setTrigger(false);
-    if (value === 'Authorization denied') setAuthorized(false);
+    const idFragment = value.split('/d/')[1]?.split('/')[0]?.slice(0, 6) || 'Sheet';
+    linkSheet(`Linked Spreadsheet (${idFragment})`, value);
   };
-  const connect = () => {
-    setConnected(true);
-    setScenario('Normal operation');
-    invalidate();
-    setNotice('Demo Google account connected.');
+
+  const filteredSheets = LINKED_SHEETS.filter((s) => s.name.toLowerCase().includes(search.toLowerCase()));
+
+  const updateMapping = (id: string, crm: string) => {
+    setMappings((prev) => prev.map((m) => (m.id === id ? { ...m, crm } : m)));
   };
+  const addMappingRow = () => {
+    const source = FIELDS.find((f) => !mappings.some((m) => m.source === f)) || '';
+    setMappings((prev) => [...prev, { id: `map-manual-${Date.now()}`, source, crm: '' }]);
+  };
+  const removeMapping = (id: string) => setMappings((prev) => prev.filter((m) => m.id !== id));
+  const resetMapping = () => setMappings(initialMappings());
+
+  const addStaticField = () => {
+    const field = availableStaticFields[0];
+    if (!field) return;
+    setStaticFields((prev) => [...prev, { id: `sf-${Date.now()}`, field, value: '' }]);
+  };
+  const updateStaticField = (id: string, updates: Partial<StaticField>) => {
+    setStaticFields((prev) => prev.map((sf) => (sf.id === id ? { ...sf, ...updates } : sf)));
+  };
+  const removeStaticField = (id: string) => setStaticFields((prev) => prev.filter((sf) => sf.id !== id));
+
   const configureTrigger = () => {
-    if (scenario === 'Trigger creation failed')
-      return fail('Trigger creation failed. Please retry configuring the trigger.');
-    setTrigger(true);
-    invalidate();
-    setNotice('On Form Submit trigger configured successfully.');
+    setConfiguringTrigger(true);
+    setTimeout(() => {
+      setConfiguringTrigger(false);
+      setTrigger(true);
+      toast.success('On Form Submit trigger configured successfully.');
+    }, 900);
   };
+
   const authorize = () => {
-    if (!connected) return fail('Google account disconnected. Reconnect your account.');
-    if (scenario === 'Authorization denied')
-      return fail('Authorization denied. Grant Google permissions and try again.');
-    setAuthorized(true);
-    invalidate();
-    setNotice('Google account authorized for this demo integration.');
+    setAuthorizing(true);
+    setTimeout(() => {
+      setAuthorizing(false);
+      setAuthorized(true);
+      toast.success('Google account authorized for this integration.');
+    }, 900);
   };
-  const validations = [
-    ['Google Account', connected, 'Connected'],
-    ['Spreadsheet', !!sheet && scenario !== 'Spreadsheet access denied', 'Connected'],
-    ['Fields', !!sheet && scenario !== 'No columns detected', 'Detected'],
-    ['Field Mapping', mappingValid && scenario !== 'Required CRM field unmapped', 'Valid'],
-    [
-      'Default Values',
-      true,
-      defaults.some((d) => Object.keys(d).length) ? 'Configured' : 'Optional — not configured',
-    ],
-    ['Trigger', trigger, 'Active'],
-    ['Google Authorization', authorized, 'Authorized'],
-    ['CRM Connection', scenario !== 'CRM lead creation failed', 'Connected (demo)'],
-  ] as const;
-  const recordLead = (status: string, reason = '') => {
-    const id = `DEMO-LEAD-${Date.now()}`;
-    const date = new Date().toLocaleString();
-    setLeads((rows) => [
-      { id, name: 'Rahul Sharma', email: 'abc@gmail.com', status, date, reason },
-      ...rows,
-    ]);
-    setLastSync(date);
-    setPage(1);
-    return id;
+
+  const fetchTestLead = () => {
+    setFetchingLead(true);
+    setTimeout(() => {
+      const pick = TEST_LEAD_POOL[testLeads.length % TEST_LEAD_POOL.length];
+      const lead: TestLead = {
+        id: `gform-lead-${Date.now()}`,
+        name: pick.name,
+        email: pick.email,
+        mobile: pick.mobile,
+        receivedAt: new Date().toLocaleString(),
+        addedToCrm: false,
+      };
+      setTestLeads((prev) => [lead, ...prev]);
+      setFetchingLead(false);
+      toast.success('Test lead fetched from your Google Form response sheet.');
+    }, 1100);
   };
-  const verify = () => {
-    setError('');
-    const failed = validations.find((row) => !row[1]);
-    if (failed) {
-      if (scenario === 'CRM lead creation failed') recordLead('Failed', 'CRM lead creation failed');
-      return fail(
-        `${failed[0]} validation failed. ${scenario === 'Normal operation' ? 'Complete the configuration before continuing.' : scenario + '.'}`
-      );
-    }
-    if (scenario === 'Duplicate lead') {
-      recordLead('Duplicate', 'Existing CRM duplicate rule: skip matching email');
-      return fail(
-        'Duplicate lead detected. Existing CRM duplicate rule applied: skipped matching email; result logged.'
-      );
-    }
-    const id = recordLead('Success');
-    setTested(true);
-    setNotice(`Test lead created successfully! Lead ID: ${id} (demo)`);
+  const addLeadToCrm = (id: string) => {
+    setTestLeads((prev) => prev.map((lead) => (lead.id === id ? { ...lead, addedToCrm: true } : lead)));
+    toast.success('Lead added to CRM.');
   };
-  const recover = () => {
-    setScenario('Normal operation');
-    setError('');
-    setNotice('Demo issue cleared. Retry the failed action to verify recovery.');
+  const deleteLead = (id: string) => {
+    setTestLeads((prev) => prev.filter((lead) => lead.id !== id));
+    toast('Test lead deleted.');
   };
-  const canNext =
-    step === 0
-      ? connected &&
-        !!sheet &&
-        !['Spreadsheet access denied', 'No columns detected'].includes(scenario)
-      : step === 1
-        ? mappingValid && scenario !== 'Required CRM field unmapped'
-        : step === 2
-          ? connected && trigger && authorized
-          : tested;
+
+  const activate = () => {
+    const row: Integration = {
+      id: `int-gform-${Date.now()}`,
+      name: sheet?.name ? `Google Form - ${sheet.name}` : 'Google Form Integration',
+      type: 'google-forms',
+      status: 'active',
+      lastSync: 'Just now',
+      events24h: 0,
+      successRate: 0,
+      latencyMs: 0,
+      owner: 'Pramod Bhujbal',
+      created: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      environment: 'production',
+      errorCount: 0,
+    };
+    addActivatedIntegration(row);
+    setActivated(true);
+    setActivatedId(row.id);
+    toast.success('Google Form integration activated.');
+  };
+
+  const deactivate = () => {
+    if (activatedId) removeActivatedIntegration(activatedId);
+    setActivated(false);
+    setActivatedId(null);
+    toast('Google Form integration deactivated.');
+  };
 
   return (
-    <div className="space-y-5 text-slate-700">
-      <header className="flex flex-wrap items-center justify-between gap-3">
+    <div className="space-y-5">
+      {/* Header */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex items-center gap-3">
-          <Link href="/" aria-label="Back to Integration Center" className={button}>
-            <ArrowLeft size={16} />
-          </Link>
           <ConnectorIcon type="google-forms" size={36} />
           <div>
-            <h1 className="text-xl font-semibold">Google Form Integration</h1>
-            <p className="text-xs text-slate-500">
-              Step {step + 1} of 5 · {STEPS[step]}
-            </p>
+            <h1 className="text-[18px] font-semibold text-foreground tracking-tight">Google Form Integration</h1>
+            <p className="text-[12px] text-muted-foreground mt-0.5">Step {step + 1} of 2 — {STEPS[step]}</p>
           </div>
         </div>
-        <Link href="/" className={button}>
-          Back to Integration Center
+        <Link href="/">
+          <button className={btnGhost}>
+            <ChevronLeft size={13} />Back to Integration Center
+          </button>
         </Link>
-      </header>
-      <div className="flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 p-3 text-xs text-blue-700">
-        <Info size={16} className="shrink-0" />
-        Demo mode — sample Google account, spreadsheets and CRM leads. Live OAuth and CRM services
-        are not connected.
       </div>
-      <nav
-        aria-label="Integration setup progress"
-        className="grid grid-cols-1 gap-2 rounded-lg border border-slate-200 bg-white p-4 sm:grid-cols-5"
-      >
-        {STEPS.map((label, index) => (
-          <button
-            key={label}
-            disabled={active || index > step}
-            onClick={() => {
-              setStep(index);
-              setNotice('');
-            }}
-            aria-current={index === step ? 'step' : undefined}
-            className={`flex items-center gap-2 text-left text-xs ${index === step ? 'font-semibold text-blue-600' : 'text-slate-500'} disabled:cursor-default`}
-          >
-            <span
-              className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full ${index <= step ? 'bg-blue-600 text-white' : 'border border-slate-200'}`}
-            >
-              {index < step ? <Check size={14} /> : index + 1}
-            </span>
-            {label}
-          </button>
-        ))}
-      </nav>
-      <details className="rounded-lg border border-slate-200 bg-white p-3 text-xs">
-        <summary className="cursor-pointer font-medium">Demo scenarios · {scenario}</summary>
-        <div className="mt-3 max-w-md">
-          <Select
-            label="Exercise screenshot error and recovery scenarios"
-            value={scenario}
-            options={SCENARIOS}
-            onChange={changeScenario}
-          />
-        </div>
-      </details>
-      {error && (
-        <div role="alert" className="space-y-3 rounded-lg border border-red-200 bg-red-50 p-5">
-          <div className="flex items-center gap-2 font-semibold text-red-600">
-            <AlertTriangle size={20} />
-            {scenario === 'Spreadsheet access denied'
-              ? 'Access Denied'
-              : 'Integration needs attention'}
+
+      {/* Demo mode notice */}
+      <div className="flex items-center gap-2.5 rounded-lg border border-info-border bg-info-bg px-4 py-3 text-[12px] text-info">
+        <Info size={15} className="flex-shrink-0" />
+        Demo mode — sample Google account, spreadsheets and CRM leads. Live OAuth and CRM services are not connected.
+      </div>
+
+      {/* Step indicator */}
+      <WizardStepper currentStep={step} labels={STEPS} descriptions={STEP_DESCRIPTIONS} />
+
+      {activated && (
+        <div className="flex items-center gap-3 rounded-lg border border-success-border bg-success-bg px-4 py-3.5">
+          <CheckCircle2 size={20} className="text-success flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-[13px] font-semibold text-success">Integration Activated</p>
+            <p className="text-[11px] text-success/80 mt-0.5">This Google Form integration is now live and syncing leads to CRM (demo).</p>
           </div>
-          <p className="text-sm text-red-700">{error}</p>
-          <button
-            className={primary}
-            onClick={scenario === 'Google account disconnected' ? connect : recover}
-          >
-            {scenario === 'Spreadsheet access denied'
-              ? 'Grant Permission'
-              : scenario === 'Google account disconnected'
-                ? 'Reconnect'
-                : 'Try Again'}
-          </button>
-        </div>
-      )}
-      {notice && (
-        <div
-          role="status"
-          className="flex items-center gap-2 rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-700"
-        >
-          <CheckCircle2 size={18} />
-          {notice}
+          <div className="flex items-center gap-2">
+            <button className={btnGhost} onClick={deactivate}>Deactivate Integration</button>
+            <Link href="/">
+              <button className={btnGhost}>Back to Integration Center</button>
+            </Link>
+          </div>
         </div>
       )}
 
       {step === 0 && (
-        <div className="space-y-5">
-          <Panel title="Connect Google Account">
-            <p className="text-xs text-slate-500">
-              Connect the Google account used for this integration.
-            </p>
-            <div className="flex flex-wrap items-center justify-between gap-3 rounded-md border p-4">
+        <div className="space-y-4">
+          {/* Connect Google Account */}
+          <SectionCard
+            icon={<GoogleLogo size={18} />}
+            title="Connect Google Account"
+            subtitle="Connect the Google account used for this integration."
+          >
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-border p-4">
               <div className="flex items-center gap-3">
-                <span className="text-2xl font-bold text-blue-600" aria-label="Google">
-                  G
-                </span>
+                <div className="w-9 h-9 rounded-full bg-card border border-border flex items-center justify-center flex-shrink-0">
+                  <GoogleLogo size={18} />
+                </div>
                 {connected ? (
                   <>
-                    <span className="text-sm">john.doe@gmail.com</span>
-                    <Badge>Connected</Badge>
+                    <span className="text-[13px] font-medium text-foreground">{googleAccountEmail}</span>
+                    <Pill tone="success">Connected</Pill>
                   </>
                 ) : (
-                  <Badge tone="warning">Disconnected</Badge>
+                  <Pill tone="warning">Disconnected</Pill>
                 )}
               </div>
-              <button className={button} onClick={connect}>
-                {connected ? 'Reconnect' : 'Connect Google Account'}
+              <button className={connected ? btnGhost : btnPrimary} onClick={handleConnect} disabled={connecting}>
+                {connecting ? <Loader2 size={13} className="animate-spin" /> : <GoogleLogo size={13} />}
+                {connecting ? 'Connecting...' : connected ? 'Reconnect' : 'Connect Google Account'}
               </button>
             </div>
-            <p className="flex items-center gap-2 rounded-md bg-blue-50 p-3 text-xs text-blue-600">
-              <Info size={15} />
+            <p className="flex items-start gap-2 rounded-lg bg-info-bg px-3 py-2.5 text-[11px] text-info">
+              <Info size={13} className="flex-shrink-0 mt-0.5" />
               The account must have sufficient access to the Form and linked Spreadsheet.
             </p>
-          </Panel>
-          <Panel title="Select Spreadsheet">
-            <p className="text-xs text-slate-500">
-              Choose the spreadsheet linked to your Google Form. Response sheet columns and sample
-              data are detected automatically.
-            </p>
+          </SectionCard>
+
+          {/* Select Spreadsheet */}
+          <SectionCard
+            icon={<FileSpreadsheet size={16} />}
+            title="Select Spreadsheet"
+            subtitle="Paste a spreadsheet link, or choose one already linked to your Google Forms. Columns and sample data are detected automatically."
+          >
+            <div className="flex items-center gap-2">
+              <div className="relative flex-1">
+                <Link2 size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <input
+                  type="text"
+                  value={sheetLinkInput}
+                  onChange={(e) => setSheetLinkInput(e.target.value)}
+                  disabled={!connected}
+                  placeholder="Paste Google Sheets link — https://docs.google.com/spreadsheets/d/..."
+                  className={`${fieldInput} pl-9`}
+                />
+              </div>
+              <button className={btnPrimary} disabled={!connected || !sheetLinkInput.trim()} onClick={handleLinkByUrl}>
+                <Link2 size={13} />Link
+              </button>
+            </div>
+
+            <div className="flex items-center gap-3">
+              <span className="h-px flex-1 bg-border" />
+              <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">or choose a linked sheet</span>
+              <span className="h-px flex-1 bg-border" />
+            </div>
+
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <label className="relative block">
-                  <Search size={15} className="absolute left-3 top-3 text-slate-400" />
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
                   <input
                     aria-label="Search spreadsheet"
                     placeholder="Search spreadsheet..."
-                    className={`${input} pl-9`}
                     value={search}
                     onChange={(e) => setSearch(e.target.value)}
+                    disabled={!connected}
+                    className={`${fieldInput} pl-9`}
                   />
-                </label>
-                {SHEETS.filter((s) => s.toLowerCase().includes(search.toLowerCase())).map((s) => (
-                  <label
-                    key={s}
-                    className={`flex cursor-pointer items-center gap-3 rounded-md border p-3 text-xs ${sheet === s ? 'border-emerald-200 bg-emerald-50' : 'border-slate-200'}`}
-                  >
-                    <input
-                      type="radio"
-                      name="spreadsheet"
-                      disabled={!connected}
-                      checked={sheet === s}
-                      onChange={() => {
-                        setSheet(s);
-                        setMappings(initialMappings());
-                        setTrigger(false);
-                        invalidate();
-                        if (scenario === 'Spreadsheet access denied')
-                          fail("You don't have permission to access this spreadsheet.");
-                        if (scenario === 'No columns detected')
-                          fail(
-                            'No columns detected. Add a header row to the linked response sheet and retry.'
-                          );
-                      }}
-                    />
-                    {s}
-                    <FileSpreadsheet size={14} className="ml-auto text-blue-500" />
-                  </label>
-                ))}
-                {!SHEETS.some((s) => s.toLowerCase().includes(search.toLowerCase())) && (
-                  <p className="p-4 text-sm">No spreadsheets match your search.</p>
-                )}
+                </div>
+                <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                  {filteredSheets.map((s) => (
+                    <label
+                      key={s.name}
+                      className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-[12px] transition-colors ${
+                        sheet?.name === s.name ? 'border-primary/40 bg-primary/5' : 'border-border hover:bg-muted/40'
+                      } ${!connected ? 'opacity-50 pointer-events-none' : ''}`}
+                    >
+                      <input
+                        type="radio"
+                        name="spreadsheet"
+                        disabled={!connected}
+                        checked={sheet?.name === s.name}
+                        onChange={() => linkSheet(s.name, s.url)}
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-medium text-foreground truncate">{s.name}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{s.url}</p>
+                      </div>
+                      <FileSpreadsheet size={14} className="text-success flex-shrink-0" />
+                    </label>
+                  ))}
+                  {filteredSheets.length === 0 && <p className="p-4 text-[12px] text-muted-foreground">No spreadsheets match your search.</p>}
+                </div>
               </div>
-              <div className="rounded-md border p-3">
-                <h3 className="mb-2 text-xs font-semibold">Detected Columns & Sample Data</h3>
-                {!sheet || !connected ? (
-                  <p className="text-xs text-slate-400">
-                    Connect your account and select a spreadsheet.
-                  </p>
-                ) : ['Spreadsheet access denied', 'No columns detected'].includes(scenario) ? (
-                  <p className="text-xs text-red-600">{scenario}</p>
+
+              <div className="rounded-lg border border-border p-3.5">
+                <h3 className="mb-2 text-[11px] font-semibold text-foreground uppercase tracking-wide">Detected Columns &amp; Sample Data</h3>
+                {!sheet ? (
+                  <p className="text-[11px] text-muted-foreground">Connect your account and link a spreadsheet.</p>
                 ) : (
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-slate-50">
-                      <tr>
-                        <th className="p-2">Header</th>
-                        <th>Sample</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {['Timestamp', ...FIELDS].map((field, i) => (
-                        <tr key={field} className="border-t">
-                          <td className="p-2">{field}</td>
-                          <td>{i === 0 ? '06/09/2026 15:20' : SAMPLES[i - 1]}</td>
+                  <div className="rounded-lg border border-border overflow-hidden">
+                    <table className="w-full text-left text-[11px]">
+                      <thead className="bg-muted/50">
+                        <tr>
+                          <th className="p-2 font-semibold text-muted-foreground">Header</th>
+                          <th className="p-2 font-semibold text-muted-foreground">Sample</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                      </thead>
+                      <tbody className="divide-y divide-border">
+                        <tr>
+                          <td className="p-2 text-foreground">Timestamp</td>
+                          <td className="p-2 text-muted-foreground font-mono">06/09/2026 15:20</td>
+                        </tr>
+                        {FIELDS.map((field) => (
+                          <tr key={field}>
+                            <td className="p-2 text-foreground">{field}</td>
+                            <td className="p-2 text-muted-foreground font-mono">{SAMPLES[field]}</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
                 )}
               </div>
             </div>
-          </Panel>
+          </SectionCard>
+
+          {/* Field Mapping */}
+          <SectionCard
+            icon={<Sparkles size={16} />}
+            title="Field Mapping"
+            subtitle="Auto-detected fields, mapped to your CRM. Email, First Name and Mobile Number are required."
+            action={
+              <div className="flex gap-2">
+                <button className={btnGhost} onClick={resetMapping} disabled={!sheet}>
+                  <RotateCcw size={12} />Reset Mapping
+                </button>
+                <button className={btnGhost} onClick={addMappingRow} disabled={!sheet || mappings.length >= FIELDS.length}>
+                  <Plus size={12} />Add Field Mapping
+                </button>
+              </div>
+            }
+          >
+            {!sheet ? (
+              <p className="text-[12px] text-muted-foreground">Link a spreadsheet to detect fields for mapping.</p>
+            ) : (
+              <div className="rounded-xl border border-border overflow-hidden">
+                <div className="grid grid-cols-[1fr_1fr_1fr_36px] gap-3 px-4 py-2.5 bg-muted/50 border-b border-border">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Source Field</p>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Sample</p>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">CRM Field</p>
+                  <span />
+                </div>
+                <div className="divide-y divide-border">
+                  {mappings.map((row) => (
+                    <div key={row.id} className="grid grid-cols-[1fr_1fr_1fr_36px] gap-3 px-4 py-2.5 items-center group">
+                      <span className="text-[12px] text-foreground truncate">{row.source || '—'}</span>
+                      <span className="text-[12px] text-muted-foreground font-mono truncate">{row.source ? SAMPLES[row.source] : '—'}</span>
+                      <select
+                        aria-label={`CRM field for ${row.source}`}
+                        className={fieldInput}
+                        value={row.crm}
+                        onChange={(e) => updateMapping(row.id, e.target.value)}
+                      >
+                        <option value="">Select CRM field</option>
+                        {FIELDS.map((f) => (
+                          <option key={f} value={f} disabled={usedCrmFields.has(f) && row.crm !== f}>
+                            {f}
+                          </option>
+                        ))}
+                      </select>
+                      <button
+                        onClick={() => removeMapping(row.id)}
+                        aria-label={`Remove ${row.source} mapping`}
+                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-danger transition-all"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+            {sheet && !mappingValid && (
+              <p className="text-[11px] text-warning">Map Email, First Name and Mobile Number to a unique CRM field to continue.</p>
+            )}
+          </SectionCard>
+
+          {/* Static Field Mapping */}
+          <SectionCard
+            icon={<Tag size={16} />}
+            title="Static Field Mapping"
+            subtitle="CRM attributes set to a fixed value on every lead captured from this form."
+            action={
+              <button className={btnGhost} onClick={addStaticField} disabled={!sheet || availableStaticFields.length === 0}>
+                <Plus size={12} />Add Static Field
+              </button>
+            }
+          >
+            {staticFields.length === 0 ? (
+              <p className="text-[12px] text-muted-foreground">No static fields yet. Add one to apply a fixed value, e.g. Lead Source = Google Form.</p>
+            ) : (
+              <div className="rounded-xl border border-border overflow-hidden">
+                <div className="grid grid-cols-[1fr_1fr_36px] gap-3 px-4 py-2.5 bg-muted/50 border-b border-border">
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Field</p>
+                  <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wide">Static Value</p>
+                  <span />
+                </div>
+                <div className="divide-y divide-border">
+                  {staticFields.map((sf) => (
+                    <div key={sf.id} className="grid grid-cols-[1fr_1fr_36px] gap-3 px-4 py-2.5 items-center group">
+                      <select
+                        className={fieldInput}
+                        value={sf.field}
+                        onChange={(e) => updateStaticField(sf.id, { field: e.target.value })}
+                      >
+                        {[sf.field, ...availableStaticFields].map((f) => (
+                          <option key={f} value={f}>{f}</option>
+                        ))}
+                      </select>
+                      <input
+                        type="text"
+                        value={sf.value}
+                        onChange={(e) => updateStaticField(sf.id, { value: e.target.value })}
+                        placeholder="Enter fixed value"
+                        className={fieldInput}
+                      />
+                      <button
+                        onClick={() => removeStaticField(sf.id)}
+                        aria-label={`Remove ${sf.field} static value`}
+                        className="opacity-0 group-hover:opacity-100 text-muted-foreground hover:text-danger transition-all"
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </SectionCard>
         </div>
       )}
 
       {step === 1 && (
-        <div className="space-y-5">
-          <Panel title="Field Mapping">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <p className="text-xs text-slate-500">
-                Auto-detect and auto-map fields. Review all mappings. Email, First Name and Mobile
-                Number are required.
-              </p>
-              <div className="flex gap-2">
-                <button
-                  className={button}
-                  onClick={() => {
-                    setMappings(initialMappings());
-                    invalidate();
-                  }}
-                >
-                  <RotateCcw size={14} />
-                  Reset Mapping
-                </button>
-                <button
-                  className={button}
-                  disabled={mappings.length >= FIELDS.length}
-                  onClick={() => {
-                    const source = FIELDS.find((f) => !mappings.some((m) => m.source === f));
-                    if (source) setMappings([...mappings, { source, crm: '', reviewed: false }]);
-                    invalidate();
-                  }}
-                >
-                  <Plus size={14} />
-                  Add Field Mapping
-                </button>
+        <div className="space-y-4">
+          <div className="grid gap-4 lg:grid-cols-2">
+            <SectionCard icon={<Zap size={16} />} title="Configure Trigger" subtitle="Fires the sync whenever a new form response arrives.">
+              <div className="space-y-2.5 text-[12px]">
+                <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                  <span className="text-muted-foreground">Event Source</span>
+                  <span className="font-medium text-foreground">Google Spreadsheet</span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                  <span className="text-muted-foreground">Event Type</span>
+                  <span className="font-medium text-foreground">On Form Submit</span>
+                </div>
+                <div className="flex items-center justify-between rounded-lg border border-border px-3 py-2">
+                  <span className="text-muted-foreground">Action</span>
+                  <span className="font-medium text-foreground">Create Lead in CRM</span>
+                </div>
               </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[580px] text-left text-xs">
-                <thead className="bg-slate-50">
-                  <tr>
-                    {['Source Field', 'Sample', 'CRM Field', 'Status', 'Actions'].map((h) => (
-                      <th key={h} className="p-3">
-                        {h}
-                      </th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {mappings.map((row, index) => (
-                    <tr key={row.source} className="border-t">
-                      <td className="p-3">{row.source}</td>
-                      <td className="p-3">{SAMPLES[FIELDS.indexOf(row.source)]}</td>
-                      <td className="p-3">
-                        <select
-                          aria-label={`CRM field for ${row.source}`}
-                          className={input}
-                          value={row.crm}
-                          onChange={(e) => {
-                            setMappings(
-                              mappings.map((r, i) =>
-                                i === index ? { ...r, crm: e.target.value, reviewed: true } : r
-                              )
-                            );
-                            invalidate();
-                          }}
-                        >
-                          <option value="">Select CRM field</option>
-                          {FIELDS.map((f) => (
-                            <option
-                              key={f}
-                              disabled={mappings.some((r, i) => i !== index && r.crm === f)}
-                            >
-                              {f}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-                      <td className="p-3">
-                        <Badge tone={row.crm && row.reviewed ? 'success' : 'warning'}>
-                          {!row.crm ? 'Unmapped' : row.reviewed ? 'Auto Mapped' : 'Needs Review'}
-                        </Badge>
-                      </td>
-                      <td className="p-3">
-                        <div className="flex gap-2">
-                          {!row.reviewed && (
-                            <button
-                              className={button}
-                              onClick={() => {
-                                setMappings(
-                                  mappings.map((r, i) =>
-                                    i === index ? { ...r, reviewed: true } : r
-                                  )
-                                );
-                                invalidate();
-                              }}
-                            >
-                              Confirm
-                            </button>
-                          )}
-                          <button
-                            className={button}
-                            aria-label={`Remove ${row.source} mapping`}
-                            onClick={() => {
-                              setMappings(mappings.filter((_, i) => i !== index));
-                              invalidate();
-                            }}
-                          >
-                            <Trash2 size={14} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-            {!mappingValid && (
-              <p className="text-xs text-amber-700">
-                Map required CRM fields and confirm mappings marked Needs Review to continue.
-              </p>
-            )}
-          </Panel>
-          <Panel title="Default Values">
-            <p className="text-xs text-slate-500">
-              These values are used only when the incoming source value is empty or null.
-            </p>
-            <div className="flex gap-2">
-              {[0, 1, 2, 3].map((e) => (
-                <button
-                  key={e}
-                  className={entity === e ? primary : button}
-                  onClick={() => setEntity(e)}
-                >
-                  Entity {e + 1}
-                </button>
-              ))}
-            </div>
-            <div className="grid gap-5 md:grid-cols-2">
-              <div className="space-y-3">
-                <Select
-                  label="Add Field"
-                  value={defaultField}
-                  options={DEFAULT_FIELDS}
-                  onChange={setDefaultField}
-                />
-                <button
-                  className={button}
-                  disabled={defaultField in defaults[entity]}
-                  onClick={() => {
-                    setDefaults(
-                      defaults.map((d, i) => (i === entity ? { ...d, [defaultField]: '' } : d))
-                    );
-                    invalidate();
-                  }}
-                >
-                  <Plus size={14} />
-                  Add Field
-                </button>
-                <Badge tone={Object.values(defaults[entity]).some(Boolean) ? 'success' : 'warning'}>
-                  {Object.values(defaults[entity]).some(Boolean) ? 'Configured' : 'Not Configured'}
-                </Badge>
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[12px] text-muted-foreground">Trigger Status</span>
+                <Pill tone={trigger ? 'success' : 'warning'}>{trigger ? 'Configured' : 'Not Configured'}</Pill>
               </div>
-              <div className="space-y-3">
-                {Object.entries(defaults[entity]).map(([field, value]) => (
-                  <div key={field} className="flex items-end gap-2">
-                    <label className="flex-1 space-y-1 text-xs">
-                      {field}
-                      <input
-                        className={input}
-                        placeholder={`Enter ${field.toLowerCase()}`}
-                        value={value}
-                        onChange={(e) => {
-                          setDefaults(
-                            defaults.map((d, i) =>
-                              i === entity ? { ...d, [field]: e.target.value } : d
-                            )
-                          );
-                          invalidate();
-                        }}
-                      />
-                    </label>
-                    <button
-                      className={button}
-                      aria-label={`Remove default ${field}`}
-                      onClick={() => {
-                        setDefaults(
-                          defaults.map((d, i) => {
-                            if (i !== entity) return d;
-                            const next = { ...d };
-                            delete next[field];
-                            return next;
-                          })
-                        );
-                        invalidate();
-                      }}
-                    >
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </Panel>
-        </div>
-      )}
-
-      {step === 2 && (
-        <div className="grid gap-5 lg:grid-cols-2">
-          <Panel title="Configure Trigger">
-            <Select
-              label="Event Source"
-              value="Google Spreadsheet"
-              options={['Google Spreadsheet']}
-            />
-            <Select label="Event Type" value="On Form Submit" options={['On Form Submit']} />
-            <Select label="Action" value="Create Lead in CRM" options={['Create Lead in CRM']} />
-            <div className="flex items-center justify-between">
-              <span className="text-xs">Trigger Status</span>
-              <Badge tone={trigger ? 'success' : 'warning'}>
-                {trigger ? 'Configured' : 'Not Configured'}
-              </Badge>
-            </div>
-            <button className={primary} onClick={configureTrigger}>
-              <RefreshCw size={14} />
-              {trigger ? 'Reconfigure Trigger' : 'Configure Trigger'}
-            </button>
-          </Panel>
-          <Panel title="Google Authorization">
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border p-3">
-              <span className="text-sm">john.doe@gmail.com</span>
-              <Badge tone={connected ? 'success' : 'error'}>
-                {connected ? 'Connected' : 'Disconnected'}
-              </Badge>
-            </div>
-            <p className="text-xs leading-6 text-slate-500">
-              Google permissions are required to access your Form and Spreadsheet data, and to
-              create leads in CRM.
-            </p>
-            <button className={primary} onClick={connected ? authorize : connect}>
-              <ShieldCheck size={16} />
-              {connected ? 'Authorize Google Account' : 'Reconnect'}
-            </button>
-            {authorized && (
-              <div>
-                <Badge>Authorized</Badge>
-              </div>
-            )}
-          </Panel>
-        </div>
-      )}
-
-      {step === 3 && (
-        <Panel title="Test & Verify">
-          <p className="text-xs text-slate-500">
-            Validate the complete integration before activation and create a demo test lead.
-          </p>
-          <table className="w-full text-left text-xs">
-            <thead className="bg-slate-50">
-              <tr>
-                <th className="p-3">Validation</th>
-                <th>Expected Result</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {validations.map(([label, valid, expected]) => (
-                <tr key={label} className="border-t">
-                  <td className="p-3">{label}</td>
-                  <td>{expected}</td>
-                  <td>
-                    <Badge tone={!valid ? 'error' : tested ? 'success' : 'warning'}>
-                      {!valid ? 'Failed' : tested ? 'Success' : 'Ready'}
-                    </Badge>
-                  </td>
-                </tr>
-              ))}
-              <tr className="border-t">
-                <td className="p-3">Test Lead</td>
-                <td>Created Successfully</td>
-                <td>
-                  <Badge tone={tested ? 'success' : 'warning'}>
-                    {tested ? 'Success' : 'Not Tested'}
-                  </Badge>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-          <button className={primary} onClick={verify}>
-            <CheckCircle2 size={15} />
-            {tested ? 'Run Test Again' : 'Test & Create Lead'}
-          </button>
-        </Panel>
-      )}
-
-      {step === 4 && (
-        <div className="space-y-5">
-          {success ? (
-            <div
-              role="status"
-              className="rounded-lg border border-emerald-200 bg-emerald-50 py-10 text-center"
-            >
-              <CheckCircle2 className="mx-auto mb-3 text-emerald-500" size={40} />
-              <h2 className="font-semibold">Integration Activated</h2>
-              <p className="my-3 text-sm">
-                Google Form integration has been activated successfully in demo mode.
-              </p>
-              <button className={primary} onClick={() => setSuccess(false)}>
-                View Integration
+              <button className={btnPrimary} onClick={configureTrigger} disabled={configuringTrigger}>
+                {configuringTrigger ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                {trigger ? 'Reconfigure Trigger' : 'Configure Trigger'}
               </button>
-            </div>
-          ) : active ? (
-            <Panel title="Monitoring — Integration Status">
-              <div className="flex gap-3 border-b pb-3">
-                {['Overview', 'Recent Leads', 'Lead Data'].map((t) => (
-                  <button
-                    className={tab === t ? primary : button}
-                    key={t}
-                    onClick={() => setTab(t)}
-                  >
-                    {t}
-                  </button>
-                ))}
+            </SectionCard>
+
+            <SectionCard icon={<ShieldCheck size={16} />} title="Google Authorization" subtitle="Grant permission to read Form/Sheet data and create CRM leads.">
+              <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border px-3 py-2.5">
+                <span className="text-[12px] font-medium text-foreground">{googleAccountEmail}</span>
+                <Pill tone={connected ? 'success' : 'danger'}>{connected ? 'Connected' : 'Disconnected'}</Pill>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm">
-                  Integration Status{' '}
-                  <Badge tone={scenario === 'Normal operation' && connected ? 'success' : 'error'}>
-                    {scenario === 'Normal operation' && connected ? 'Active' : 'Failed'}
-                  </Badge>
-                </span>
-                <button className={button} onClick={connected ? verify : connect}>
-                  <RefreshCw size={14} />
-                  {connected ? 'Sync Demo Response' : 'Reconnect'}
-                </button>
+              <div className="flex items-center justify-between pt-1">
+                <span className="text-[12px] text-muted-foreground">Authorization Status</span>
+                <Pill tone={authorized ? 'success' : 'warning'}>{authorized ? 'Authorized' : 'Not Authorized'}</Pill>
               </div>
-              {tab === 'Overview' && (
-                <>
-                  <div className="grid grid-cols-3 gap-3">
-                    {[
-                      ['Total Leads Received', leads.length],
-                      ['Successful Leads', leads.filter((l) => l.status === 'Success').length],
-                      ['Failed Leads', leads.filter((l) => l.status === 'Failed').length],
-                    ].map(([label, count]) => (
-                      <div key={label} className="rounded-md border bg-slate-50 p-4">
-                        <p className="text-xs">{label}</p>
-                        <p className="mt-2 text-xl font-semibold">{count}</p>
-                      </div>
-                    ))}
+              <button className={btnPrimary} onClick={authorize} disabled={authorizing || authorized}>
+                {authorizing ? <Loader2 size={13} className="animate-spin" /> : <ShieldCheck size={13} />}
+                {authorized ? 'Authorized' : authorizing ? 'Authorizing...' : 'Authorize Google Account'}
+              </button>
+            </SectionCard>
+          </div>
+
+          <SectionCard
+            icon={<UserCheck size={16} />}
+            title="Test Lead"
+            subtitle="Fetch a sample lead from your Google Form responses, then add it to CRM or discard it."
+            action={
+              <button className={btnPrimary} onClick={fetchTestLead} disabled={fetchingLead || !trigger || !authorized}>
+                {fetchingLead ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                {fetchingLead ? 'Fetching...' : 'Fetch Test Lead'}
+              </button>
+            }
+          >
+            {(!trigger || !authorized) && (
+              <p className="text-[11px] text-warning">Configure the trigger and authorize your Google account before fetching a test lead.</p>
+            )}
+            {testLeads.length === 0 ? (
+              <p className="text-[12px] text-muted-foreground">No test leads fetched yet.</p>
+            ) : (
+              <div className="rounded-xl border border-border overflow-hidden">
+                <div className="overflow-x-auto">
+                  <div className="min-w-[720px]">
+                    <div className="grid grid-cols-[1.2fr_1.4fr_1.2fr_1.3fr_110px_190px] gap-3 px-4 py-2.5 bg-muted/50 border-b border-border">
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Name</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Email</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Mobile</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Received At</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Status</span>
+                      <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground text-right">Actions</span>
+                    </div>
+                    <div className="divide-y divide-border">
+                      {testLeads.map((lead) => (
+                        <div key={lead.id} className="grid grid-cols-[1.2fr_1.4fr_1.2fr_1.3fr_110px_190px] gap-3 px-4 py-2.5 items-center hover:bg-muted/20 transition-colors">
+                          <span className="text-[12px] font-medium text-foreground truncate">{lead.name}</span>
+                          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground truncate"><Mail size={11} className="flex-shrink-0" />{lead.email}</span>
+                          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground truncate"><Phone size={11} className="flex-shrink-0" />{lead.mobile}</span>
+                          <span className="text-[11px] text-muted-foreground font-mono truncate">{lead.receivedAt}</span>
+                          <Pill tone={lead.addedToCrm ? 'success' : 'neutral'}>{lead.addedToCrm ? 'Added' : 'Pending'}</Pill>
+                          <div className="flex items-center justify-end gap-1.5">
+                            <button
+                              onClick={() => addLeadToCrm(lead.id)}
+                              disabled={lead.addedToCrm}
+                              className="flex items-center gap-1 h-7 px-3 text-[10px] font-semibold rounded-md bg-primary text-white hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:bg-muted disabled:text-muted-foreground"
+                            >
+                              <Plus size={11} />{lead.addedToCrm ? 'Added' : 'Add'}
+                            </button>
+                            <button
+                              onClick={() => deleteLead(lead.id)}
+                              className="flex items-center gap-1 h-7 px-2.5 text-[10px] font-semibold rounded-md bg-danger-bg text-danger hover:bg-danger-bg/70 transition-colors"
+                            >
+                              <Trash2 size={11} />Delete
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                  <p className="text-xs">
-                    Last Lead Received: {leads[0]?.date ?? 'Never'} · Last Sync: {lastSync}
-                  </p>
-                </>
-              )}
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[750px] text-left text-xs">
-                  <thead className="bg-slate-50">
-                    <tr>
-                      {['Lead ID', 'Name', 'Email', 'Source', 'Status', 'Created On', 'Reason'].map(
-                        (h) => (
-                          <th key={h} className="p-2">
-                            {h}
-                          </th>
-                        )
-                      )}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {leads.slice((page - 1) * 5, page * 5).map((lead) => (
-                      <tr key={lead.id} className="border-t">
-                        <td className="p-2">{lead.id}</td>
-                        <td>{lead.name}</td>
-                        <td>{lead.email}</td>
-                        <td>{config.source}</td>
-                        <td>
-                          <Badge
-                            tone={
-                              lead.status === 'Success'
-                                ? 'success'
-                                : lead.status === 'Duplicate'
-                                  ? 'warning'
-                                  : 'error'
-                            }
-                          >
-                            {lead.status}
-                          </Badge>
-                        </td>
-                        <td>{lead.date}</td>
-                        <td>{lead.reason || '—'}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                </div>
               </div>
-              <div className="flex items-center justify-end gap-3 text-xs">
-                <button className={button} disabled={page === 1} onClick={() => setPage(page - 1)}>
-                  Previous
-                </button>
-                Page {page} of {Math.max(1, Math.ceil(leads.length / 5))}
-                <button
-                  className={button}
-                  disabled={page * 5 >= leads.length}
-                  onClick={() => setPage(page + 1)}
-                >
-                  Next
-                </button>
-              </div>
-            </Panel>
-          ) : (
-            <>
-              <div className="grid gap-5 lg:grid-cols-2">
-                <Panel title="Integration Summary">
-                  <label className="block space-y-2 text-xs">
-                    Integration Name
-                    <input
-                      className={input}
-                      value={name}
-                      onChange={(e) => setName(e.target.value)}
-                    />
-                  </label>
-                  <dl className="grid grid-cols-2 gap-3 text-xs">
-                    {[
-                      [
-                        'Google Account',
-                        connected ? 'john.doe@gmail.com (Connected)' : 'Disconnected',
-                      ],
-                      ['Spreadsheet', sheet],
-                      ['Detected Fields', '6'],
-                      [
-                        'Field Mapping',
-                        `${mappings.length} mapped; ${mappings.filter((r) => !r.reviewed).length} need review`,
-                      ],
-                      [
-                        'Default Values',
-                        `${defaults.filter((d) => Object.values(d).some(Boolean)).length} entities configured`,
-                      ],
-                      ['Trigger', trigger ? 'Active' : 'Not Configured'],
-                      ['Authorization', authorized ? 'Authorized' : 'Not Authorized'],
-                      ['EESource', '13 (System Defined)'],
-                    ].map(([label, value]) => (
-                      <React.Fragment key={label}>
-                        <dt className="text-slate-500">{label}</dt>
-                        <dd>{value}</dd>
-                      </React.Fragment>
-                    ))}
-                  </dl>
-                </Panel>
-                <Panel title="Lead Creation Configuration">
-                  <Select
-                    label="Integration Type"
-                    value="Google Form Integration"
-                    options={['Google Form Integration']}
-                    disabled
-                  />
-                  {(['source', 'name', 'type', 'channel'] as const).map((key) => (
-                    <Select
-                      key={key}
-                      label={`Lead ${key[0].toUpperCase() + key.slice(1)}`}
-                      value={config[key]}
-                      options={
-                        key === 'source'
-                          ? ['Google Form', 'Website', 'Campaign']
-                          : key === 'name'
-                            ? ['Google Forms', 'Student Admission', 'Lead Generation']
-                            : ['Online', 'Offline']
-                      }
-                      onChange={(value) => {
-                        setConfig({ ...config, [key]: value });
-                        invalidate();
-                      }}
-                    />
-                  ))}
-                  <Select
-                    label="EESource"
-                    value="13 (System Defined)"
-                    options={['13 (System Defined)']}
-                    disabled
-                  />
-                  <button
-                    className={button}
-                    onClick={() => {
-                      setNotice(
-                        'Lead configuration saved for this session. Run verification after changes.'
-                      );
-                    }}
-                  >
-                    Save
-                  </button>
-                </Panel>
-              </div>
-              {!tested && (
-                <button className={button} onClick={() => setStep(3)}>
-                  Return to Test & Verify
-                </button>
-              )}
-            </>
-          )}
+            )}
+          </SectionCard>
         </div>
       )}
-      {!active && (
-        <footer className="flex items-center justify-between border-t pt-4">
-          <button
-            className={button}
-            disabled={step === 0}
-            onClick={() => {
-              setStep(step - 1);
-              setNotice('');
-            }}
-          >
-            <ArrowLeft size={14} />
-            Back
+
+      {/* Footer nav */}
+      {!activated && (
+        <div className="flex items-center justify-between border-t border-border pt-4">
+          <button className={btnGhost} disabled={step === 0} onClick={() => setStep(0)}>
+            <ChevronLeft size={13} />Back
           </button>
-          {step < 4 ? (
-            <button
-              className={primary}
-              disabled={!canNext}
-              onClick={() => {
-                setStep(step + 1);
-                setNotice('');
-              }}
-            >
-              Next
-              <ArrowRight size={14} />
+          {step === 0 ? (
+            <button className={btnPrimary} disabled={!canProceedStep0} onClick={() => setStep(1)}>
+              Next: {STEPS[1]}<ArrowRight size={13} />
             </button>
           ) : (
-            <button
-              className={primary}
-              disabled={!tested || !name.trim() || !validations.every((v) => v[1])}
-              onClick={() => {
-                setActive(true);
-                setSuccess(true);
-                setNotice('');
-              }}
-            >
-              <CheckCircle2 size={15} />
-              Activate Integration
+            <button className={btnPrimary} disabled={!canActivate} onClick={activate}>
+              <CheckCircle2 size={14} />Activate Integration
             </button>
           )}
-        </footer>
+        </div>
       )}
     </div>
   );

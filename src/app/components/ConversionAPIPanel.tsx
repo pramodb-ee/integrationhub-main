@@ -1,5 +1,6 @@
 'use client';
 
+import OverlayPortal from '@/components/ui/OverlayPortal';
 import React, { useState } from 'react';
 import { X, RefreshCw, Edit2, FileText, ChevronDown, Download, Zap, Clock, Play, RotateCcw, CheckCircle, AlertTriangle, TrendingUp, GitBranch, Eye } from 'lucide-react';
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar, Legend } from 'recharts';
@@ -82,7 +83,7 @@ export default function ConversionAPIPanel({ onClose }: ConversionAPIPanelProps)
   );
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-end bg-black/40 backdrop-blur-sm" onClick={onClose}>
+    <OverlayPortal><div className="fixed inset-0 z-50 flex items-start justify-end bg-black/40 backdrop-blur-sm" onClick={onClose}>
       <div
         className="h-full w-full max-w-5xl bg-card shadow-2xl flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
@@ -448,6 +449,6 @@ export default function ConversionAPIPanel({ onClose }: ConversionAPIPanelProps)
           )}
         </div>
       </div>
-    </div>
+    </div></OverlayPortal>
   );
 }

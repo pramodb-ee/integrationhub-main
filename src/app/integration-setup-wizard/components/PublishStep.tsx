@@ -6,8 +6,10 @@ import ConnectorIcon from '@/components/ui/ConnectorIcon';
 import StatusBadge from '@/components/ui/StatusBadge';
 import { CheckCircle, AlertTriangle, Zap, Shield, Clock, Globe, ChevronRight, Loader2, Webhook, XCircle } from 'lucide-react';
 import { toast } from 'sonner';
+import { addActivatedIntegration } from '@/app/components/activatedIntegrationsStore';
+import type { Integration } from '@/app/components/IntegrationTable';
 
-const IVR_CONNECTORS: ConnectorType[] = ['ivr', 'tata', 'exotel', 'knowlarity', 'twilio', 'ozonetel', 'myoperator', 'cloudtalk', 'ringcentral', 'ivr-custom'];
+const IVR_CONNECTORS: ConnectorType[] = ['ivr', 'tata', 'exotel', 'knowlarity', 'twilio', 'mcube', 'ozonetel', 'myoperator', 'cloudtalk', 'ringcentral', 'ivr-custom'];
 
 interface PublishStepProps {
   connectorType: ConnectorType;
@@ -41,6 +43,21 @@ export default function PublishStep({ connectorType, integrationName, onPublishe
     setTimeout(() => {
       setPublishing(false);
       setPublished(true);
+      const row: Integration = {
+        id: `int-${connectorType}-${Date.now()}`,
+        name: integrationName,
+        type: connectorType,
+        status: 'active',
+        lastSync: 'Just now',
+        events24h: 0,
+        successRate: 0,
+        latencyMs: 0,
+        owner: 'Pramod Bhujbal',
+        created: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+        environment: 'production',
+        errorCount: 0,
+      };
+      addActivatedIntegration(row);
       toast.success(`${integrationName} is now live!`, {
         description: `${getConnectorLabel(connectorType)} integration published successfully. Monitoring activated.`,
       });

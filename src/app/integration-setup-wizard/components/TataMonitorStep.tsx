@@ -86,7 +86,7 @@ const CALL_TREND = [
 ];
 
 const SERVICE_CHECKS = [
-  { label: 'TATA Voice API', detail: 'Last check 18 sec ago', status: 'Operational', latency: '184 ms' },
+  { label: 'Voice API', detail: 'Last check 18 sec ago', status: 'Operational', latency: '184 ms' },
   { label: 'Outbound Dialer', detail: '24 active channels', status: 'Operational', latency: '231 ms' },
   { label: 'CRM Lead Sync', detail: 'Last sync 6 sec ago', status: 'Operational', latency: '284 ms' },
   { label: 'Call Recording', detail: '99.8% delivery', status: 'Operational', latency: '1.2 sec' },
@@ -324,7 +324,7 @@ export default function TataMonitorStep({ integrationName, connectorType = 'tata
           <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
             <div>
               <p className="text-[13px] font-semibold text-foreground">Lead Sync Log</p>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Every lead captured via TATA IVR — review sync status and failure reasons.</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Every lead captured via {getConnectorLabel(connectorType)} IVR — review sync status and failure reasons.</p>
             </div>
             <div className="flex items-center gap-2">
               <button onClick={() => toast.success('Lead log refreshed')} className="flex items-center gap-1.5 h-8 px-3 text-[11px] font-medium bg-card border border-border rounded-lg hover:bg-muted transition-colors"><RefreshCw size={12} /> Refresh</button>

@@ -1,5 +1,6 @@
 'use client';
 
+import { useSetupState } from '@/app/components/integrationSetupStore';
 import React, { useState } from 'react';
 import { Clock, Zap, Calendar, CheckCircle, Bell, Database, Mail, GitBranch, Plus, ChevronDown, Lock, Trash2 } from 'lucide-react';
 
@@ -64,7 +65,7 @@ function ConditionValueSelect({ condition, options, onChange }: { condition: Con
 
 export default function ERPScheduleStep({ onScheduleChange }: ERPScheduleStepProps) {
   const [conditionConnectors, setConditionConnectors] = useState<('AND' | 'OR')[]>([]);
-  const [config, setConfig] = useState<ScheduleConfig>({
+  const [config, setConfig] = useSetupState<ScheduleConfig>('erp-crm', 'ERPScheduleStep.config', {
     frequency: '',
     customCron: '',
     syncHistorical: false,

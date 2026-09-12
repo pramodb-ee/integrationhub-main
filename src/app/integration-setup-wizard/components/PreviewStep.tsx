@@ -6,7 +6,7 @@ import ConnectorIcon from '@/components/ui/ConnectorIcon';
 import { Copy, CheckCircle, Eye, Code, ArrowRight, Webhook, AlertTriangle, ExternalLink, ClipboardCheck, FlaskConical, Loader2, XCircle } from 'lucide-react';
 
 // IVR connector types
-const IVR_CONNECTORS: ConnectorType[] = ['ivr', 'tata', 'exotel', 'knowlarity', 'twilio', 'ozonetel', 'myoperator', 'cloudtalk', 'ringcentral', 'ivr-custom'];
+const IVR_CONNECTORS: ConnectorType[] = ['ivr', 'tata', 'exotel', 'knowlarity', 'twilio', 'mcube', 'ozonetel', 'myoperator', 'cloudtalk', 'ringcentral', 'ivr-custom'];
 
 // Provider-specific webhook instructions
 const WEBHOOK_INSTRUCTIONS: Partial<Record<ConnectorType, { title: string; steps: string[]; docsUrl?: string; warningNote?: string }>> = {

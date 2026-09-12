@@ -1,5 +1,8 @@
 'use client';
 
+import OverlayPortal from '@/components/ui/OverlayPortal';
+import { SetupEditContext, useSetupState } from '@/app/components/integrationSetupStore';
+import type { ConnectorType } from '@/components/ui/ConnectorIcon';
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import Modal from '@/components/ui/Modal';
@@ -31,9 +34,8 @@ function parseCsv(text: string): Record<string, string>[] {
 
 // Technical / API fields shown below the core identity fields in the Add Outbound User panel.
 const REMAINING_FIELDS = [
-  ['agentId', 'AgentId', 'Enter agent ID'], ['campaignName', 'CampaignName', 'Enter campaign name'],
-  ['setting', 'Setting', 'Enter setting'], ['mapping', 'Mapping', 'Enter mapping details'], ['httpClientHeaders', 'HttpClientHeaders', 'e.g. Content-Type: application/json'], ['httpMethod', 'HttpMethod', 'e.g. POST'],
-  ['countryCode', 'CountryCode', 'e.g. +91'], ['orderid', 'orderid', 'Enter order ID'], ['retrydelta', 'retrydelta', 'Enter retry delay'], ['callretries', 'callretries', 'Enter retry count'], ['baseurl', 'Baseurl', 'https://api.example.com'],
+  ['httpMethod', 'HttpMethod', 'e.g. POST'],
+  ['setting', 'Setting', 'Enter setting'], ['mapping', 'Mapping', 'Enter mapping details'], ['httpClientHeaders', 'HttpClientHeaders', 'e.g. Content-Type: application/json'],
 ] as const;
 
 // Directory of known employees — selecting a name auto-fills their known details.
@@ -83,11 +85,18 @@ function Toggle({ value, onChange, labels = ['NO', 'YES'] }: { value: boolean; o
 }
 
 interface TataOutboundUserManagementProps {
+  connectorType?: ConnectorType;
   onTestCallSuccess?: () => void;
 }
 
-export default function TataOutboundUserManagement({ onTestCallSuccess }: TataOutboundUserManagementProps) {
-  const [users, setUsers] = useState<User[]>(DEFAULT_OUTBOUND_USERS);
+export default function TataOutboundUserManagement({ onTestCallSuccess, connectorType = 'tata' }: TataOutboundUserManagementProps) {
+  const outboundFields: ReadonlyArray<readonly [string, string, string]> = [
+    ...REMAINING_FIELDS.filter(([key]) => connectorType !== 'mcube' || !['httpMethod', 'mapping', 'httpClientHeaders'].includes(key)),
+    ...(connectorType === 'exotel' ? [['baseurl', 'BaseUrl', 'https://api.example.com'] as const] : []),
+    ...(connectorType === 'knowlarity' ? [['countryCode', 'CountryCode', 'e.g. +91'] as const] : []),
+  ];
+  const editContext = React.useContext(SetupEditContext);
+  const [users, setUsers] = useSetupState<User[]>(connectorType, 'TataOutboundUserManagement.users', DEFAULT_OUTBOUND_USERS);
   const [usersLoaded, setUsersLoaded] = useState(false);
   const [open, setOpen] = useState(false);
   const [menu, setMenu] = useState<number | null>(null);
@@ -127,8 +136,9 @@ export default function TataOutboundUserManagement({ onTestCallSuccess }: TataOu
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    if (editContext) { setUsersLoaded(true); return; }
     try {
-      const saved = localStorage.getItem(OUTBOUND_USERS_STORAGE_KEY);
+      const saved = localStorage.getItem(`${OUTBOUND_USERS_STORAGE_KEY}:${connectorType}`);
       if (saved) {
         const parsed: unknown = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) setUsers(parsed as User[]);
@@ -141,8 +151,8 @@ export default function TataOutboundUserManagement({ onTestCallSuccess }: TataOu
   }, []);
 
   useEffect(() => {
-    if (!usersLoaded) return;
-    try { localStorage.setItem(OUTBOUND_USERS_STORAGE_KEY, JSON.stringify(users)); } catch { /* Browser storage can be unavailable. */ }
+    if (!usersLoaded || editContext) return;
+    try { localStorage.setItem(`${OUTBOUND_USERS_STORAGE_KEY}:${connectorType}`, JSON.stringify(users)); } catch { /* Browser storage can be unavailable. */ }
   }, [users, usersLoaded]);
 
   const reset = () => { setForm({ empId: '081818881818' }); setName(''); setMobile(''); setEmail(''); setActive('Active'); setExtension(false); setValidationMessage(''); };
@@ -412,7 +422,7 @@ export default function TataOutboundUserManagement({ onTestCallSuccess }: TataOu
       </div>
     </>, document.body)}
     {open && (
-      <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
+      <OverlayPortal><div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
         <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closePanel} />
         <div className="relative w-full sm:max-w-3xl bg-card h-full shadow-2xl border-l border-border flex flex-col fade-in">
           {/* Header */}
@@ -513,7 +523,7 @@ export default function TataOutboundUserManagement({ onTestCallSuccess }: TataOu
               </div>
 
               {/* Technical / API fields */}
-              {REMAINING_FIELDS.map(([key, fieldName, placeholder]) => key === 'httpMethod' ? (
+              {outboundFields.map(([key, fieldName, placeholder]) => key === 'httpMethod' ? (
                 <label key={key} className="block">
                   <span className="block text-[12px] font-semibold text-foreground mb-1">{fieldName}</span>
                   <select value={form[key] || ''} onChange={(event) => updateField(key, event.target.value)} className={inputClass}>
@@ -533,6 +543,7 @@ export default function TataOutboundUserManagement({ onTestCallSuccess }: TataOu
               ))}
 
               {/* IS Extension toggle — progressive disclosure of EmpId */}
+              {connectorType !== 'mcube' && <>
               <div className="sm:col-span-3 flex items-center justify-between p-3 rounded-lg bg-muted/20 border border-border">
                 <div>
                   <span className="block text-[12px] font-semibold text-foreground">IS Extension</span>
@@ -546,6 +557,7 @@ export default function TataOutboundUserManagement({ onTestCallSuccess }: TataOu
                   <input value={form.empId} onChange={(event) => updateField('empId', event.target.value)} placeholder="081818881818" className={inputClass} />
                 </label>
               )}
+              </>}
             </div>
           </div>
 
@@ -555,7 +567,7 @@ export default function TataOutboundUserManagement({ onTestCallSuccess }: TataOu
             <button type="button" onClick={submit} className="h-9 px-5 text-[12px] font-semibold bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors shadow-sm">Save</button>
           </div>
         </div>
-      </div>
+      </div></OverlayPortal>
     )}
     {confirm && <Modal open={true} onClose={() => setConfirm(null)} title={`${confirm.action} User`} size="sm" footer={<div className="flex justify-end gap-2"><button type="button" onClick={() => setConfirm(null)} className="h-8 px-3 text-[11px] border border-border rounded-lg">Cancel</button><button type="button" onClick={applyConfirm} className="h-8 px-3 text-[11px] font-semibold bg-danger text-white rounded-lg">Confirm</button></div>}><p className="text-[12px] text-muted-foreground">Are you sure you want to {confirm.action.toLowerCase()} this user?</p></Modal>}
 

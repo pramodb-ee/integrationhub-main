@@ -1,5 +1,6 @@
 'use client';
 
+import { useSetupState } from '@/app/components/integrationSetupStore';
 import React, { useState } from 'react';
 import { ShieldCheck, CheckCircle, XCircle, Loader2, Eye, EyeOff, Server, TestTube, Key, User, Wifi, WifiOff } from 'lucide-react';
 import { ERPId, AuthType, Environment, ERP_MAP } from './erpRegistry';
@@ -18,9 +19,9 @@ const AUTH_OPTIONS: { id: AuthType; label: string; desc: string; icon: React.Rea
 
 export default function ERPAuthStep({ erpId, onValidated }: ERPAuthStepProps) {
   const erp = ERP_MAP[erpId];
-  const [environment, setEnvironment] = useState<Environment>('production');
-  const [authType, setAuthType] = useState<AuthType | null>(null);
-  const [credentials, setCredentials] = useState<Record<string, string>>({});
+  const [environment, setEnvironment] = useSetupState<Environment>('erp-crm', 'ERPAuthStep.environment', 'production');
+  const [authType, setAuthType] = useSetupState<AuthType | null>('erp-crm', 'ERPAuthStep.authType', null);
+  const [credentials, setCredentials] = useSetupState<Record<string, string>>('erp-crm', 'ERPAuthStep.credentials', {});
   const [showPasswords, setShowPasswords] = useState<Record<string, boolean>>({});
   const [validating, setValidating] = useState(false);
   const [validationResult, setValidationResult] = useState<'idle' | 'success' | 'failed'>('idle');

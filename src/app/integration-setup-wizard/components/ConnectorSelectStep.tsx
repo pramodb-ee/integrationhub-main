@@ -20,16 +20,15 @@ const CATEGORY_GROUPS: { label: string; connectors: ConnectorEntry[] }[] = [
       { type: 'google-ads',   description: 'Pull lead data from Google Ads campaigns',                  category: 'Lead Sources' },
       { type: 'justdial',     description: 'Import leads from JustDial business listings',              category: 'Lead Sources' },
       { type: 'linkedin',     description: 'Capture leads via LinkedIn Lead Gen Forms via Pabbly',      category: 'Lead Sources' },
-      { type: 'wordpress',    description: 'Connect WordPress contact and gravity forms',               category: 'Lead Sources' },
+
+
     ],
   },
   {
     label: 'Developer / API',
     connectors: [
       { type: 'api',          description: 'Generic REST API connector for custom integrations',        category: 'Developer / API' },
-      { type: 'js',           description: 'Embed JavaScript snippet to capture form submissions',      category: 'Developer / API' },
-      { type: 'php',          description: 'Server-side PHP webhook integration',                       category: 'Developer / API' },
-      { type: 'id-based',     description: 'Map incoming data by unique identifier fields',             category: 'Developer / API' },
+
     ],
   },
   {
@@ -38,7 +37,7 @@ const CATEGORY_GROUPS: { label: string; connectors: ConnectorEntry[] }[] = [
       { type: 'tata',         description: 'TATA Tele Business Services voice and IVR integration', category: 'Telephony / IVR', badge: 'Vendor' },
       { type: 'exotel',       description: 'Exotel cloud telephony, call flows, and recordings', category: 'Telephony / IVR', badge: 'Vendor' },
       { type: 'knowlarity',   description: 'Knowlarity IVR, call routing, and agent workflows', category: 'Telephony / IVR', badge: 'Vendor' },
-      { type: 'ozonetel',     description: 'Ozonetel CloudAgent IVR lead capture',                     category: 'Telephony / IVR', badge: 'Vendor' },
+      { type: 'mcube',     description: 'Mcube IVR lead capture',                     category: 'Telephony / IVR', badge: 'Vendor' },
       { type: 'myoperator',   description: 'MyOperator cloud telephony and IVR integration',           category: 'Telephony / IVR', badge: 'Vendor' },
       { type: 'ivr-custom',   description: 'Custom / internal IVR — bring your own vendor',            category: 'Telephony / IVR', badge: 'Custom' },
     ],
@@ -46,13 +45,10 @@ const CATEGORY_GROUPS: { label: string; connectors: ConnectorEntry[] }[] = [
   {
     label: 'ERP CRM',
     connectors: [
-      { type: 'erp-crm',      description: 'Bidirectional sync with ERP and CRM platforms',            category: 'ERP CRM' },
-    ],
-  },
-  {
-    label: 'Automation',
-    connectors: [
-      { type: 'zapier',       description: 'Connect 5000+ apps through Zapier automation',             category: 'Automation' },
+      { type: 'erp-crm',        description: 'Bidirectional sync with ERP and CRM platforms',            category: 'ERP CRM' },
+      { type: 'pull-from-crm',  description: 'Pull records from your CRM into IntegrationHub',            category: 'ERP CRM' },
+      { type: 'pull-from-erp',  description: 'Pull records from your ERP into IntegrationHub',            category: 'ERP CRM' },
+      { type: 'erp-two-way',    description: '2-way sync between your ERP and CRM',                       category: 'ERP CRM' },
     ],
   },
 ];

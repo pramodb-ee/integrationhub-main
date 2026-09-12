@@ -2,17 +2,22 @@
 
 import React, { useState } from 'react';
 import IntegrationKPIGrid from './IntegrationKPIGrid';
-import IntegrationTable, { Integration } from './IntegrationTable';
+import IntegrationEditPanel from './IntegrationEditPanel';
+import { AVAILABLE_CONNECTOR_TYPES } from './integrationCatalog';
+import IntegrationTable, { Integration, buildMonitorHref } from './IntegrationTable';
 import ConnectorDistributionChart from './ConnectorDistributionChart';
 import IntegrationActivityFeed from './IntegrationActivityFeed';
 import IntegrationCatalogModal from './IntegrationCatalogModal';
 import FailedIntegrationsPanel from './FailedIntegrationsPanel';
+import FailureAlertsPanel from './FailureAlertsPanel';
 import ConversionAPIPanel from './ConversionAPIPanel';
 import TataIntegrationPopup from './TataIntegrationPopup';
+import IntegrationLogsPanel from './IntegrationLogsPanel';
+import { getActivatedIntegrations, removeActivatedIntegration } from './activatedIntegrationsStore';
 import Link from 'next/link';
 import StatusBadge from '@/components/ui/StatusBadge';
 import ConnectorIcon, { getConnectorLabel } from '@/components/ui/ConnectorIcon';
-import { Plus, Search, X, ChevronDown, AlertTriangle, Zap, LayoutGrid, List, Activity, Edit2, ExternalLink } from 'lucide-react';
+import { Plus, Search, X, ChevronDown, AlertTriangle, Zap, LayoutGrid, List, Activity, Edit2, ExternalLink, BellRing } from 'lucide-react';
 
 const MOCK_INTEGRATIONS: Integration[] = [
   { id: 'int-001', name: 'Facebook Lead Gen - Main',       type: 'facebook',     status: 'healthy',         lastSync: '3 min ago',  events24h: 1842, successRate: 98.7, latencyMs: 214,  owner: 'Pramod Bhujbal', created: 'Aug 12, 2026', environment: 'production', errorCount: 0 },
@@ -43,16 +48,17 @@ const STATUS_FILTERS = [
 const TYPE_CATEGORY_MAP: Record<string, string> = {
   facebook: 'Lead Sources', 'google-forms': 'Lead Sources', 'google-ads': 'Lead Sources',
   justdial: 'Lead Sources', linkedin: 'Lead Sources', wordpress: 'Lead Sources',
-  api: 'Developer / API', js: 'Developer / API', php: 'Developer / API', 'id-based': 'Developer / API',
-  ivr: 'Telephony / IVR', twilio: 'Telephony / IVR', ozonetel: 'Telephony / IVR',
+
+  api: 'Developer / API', js: 'Developer / API', php: 'Developer / API',
+  ivr: 'Telephony / IVR', twilio: 'Telephony / IVR', mcube: 'Telephony / IVR', ozonetel: 'Telephony / IVR',
   myoperator: 'Telephony / IVR', cloudtalk: 'Telephony / IVR', ringcentral: 'Telephony / IVR', 'ivr-custom': 'Telephony / IVR',
   tata: 'Telephony / IVR', exotel: 'Telephony / IVR', knowlarity: 'Telephony / IVR',
-  'erp-crm': 'ERP CRM',
+  'erp-crm': 'ERP CRM', 'pull-from-crm': 'ERP CRM', 'pull-from-erp': 'ERP CRM', 'erp-two-way': 'ERP CRM',
   zapier: 'Automation',
 };
 
 /* ── Integration Detail Modal ── */
-function IntegrationDetailModal({ integration, onClose }: { integration: Integration; onClose: () => void }) {
+function IntegrationDetailModal({ integration, onClose, onEdit }: { integration: Integration; onClose: () => void; onEdit: (integration: Integration) => void }) {
   const envColor = (env: string) => {
     if (env === 'production') return 'text-success bg-success-bg border-success-border';
     if (env === 'staging') return 'text-warning bg-warning-bg border-warning-border';
@@ -81,9 +87,7 @@ function IntegrationDetailModal({ integration, onClose }: { integration: Integra
           {/* Status row */}
           <div className="flex items-center gap-3 flex-wrap">
             <StatusBadge status={integration.status} size="sm" />
-            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${envColor(integration.environment)}`}>
-              {integration.environment}
-            </span>
+
             <span className="text-[12px] text-muted-foreground">Created {integration.created}</span>
           </div>
 
@@ -119,12 +123,12 @@ function IntegrationDetailModal({ integration, onClose }: { integration: Integra
 
         {/* Footer */}
         <div className="flex items-center gap-2 p-4 border-t border-border bg-muted/20 rounded-b-xl">
-          <a href="/integration-monitoring" className="flex items-center gap-1.5 h-8 px-3 text-[12px] font-medium bg-card border border-border rounded-md hover:bg-muted transition-colors text-muted-foreground">
+          <a href={buildMonitorHref(integration)} className="flex items-center gap-1.5 h-8 px-3 text-[12px] font-medium bg-card border border-border rounded-md hover:bg-muted transition-colors text-muted-foreground">
             <Activity size={13} /> Monitor
           </a>
-          <a href="/integration-setup-wizard" className="flex items-center gap-1.5 h-8 px-3 text-[12px] font-medium bg-card border border-border rounded-md hover:bg-muted transition-colors text-muted-foreground">
+          <button onClick={() => onEdit(integration)} className="flex items-center gap-1.5 h-8 px-3 text-[12px] font-medium bg-card border border-border rounded-md hover:bg-muted transition-colors text-muted-foreground">
             <Edit2 size={13} /> Edit
-          </a>
+          </button>
           <button onClick={onClose} className="ml-auto h-8 px-4 text-[12px] font-medium bg-primary text-white rounded-md hover:bg-primary/90 transition-colors">
             Close
           </button>
@@ -141,7 +145,7 @@ function IntegrationGridCard({ integration, onViewDetails, onOpenTata }: { integ
     if (env === 'staging') return 'text-warning bg-warning-bg border-warning-border';
     return 'text-muted-foreground bg-muted border-border';
   };
-  const isTelephony = ['ivr', 'tata', 'exotel', 'knowlarity', 'twilio', 'ozonetel', 'myoperator', 'cloudtalk', 'ringcentral', 'ivr-custom'].includes(integration.type);
+  const isTelephony = ['ivr', 'tata', 'exotel', 'knowlarity', 'twilio', 'mcube', 'ozonetel', 'myoperator', 'cloudtalk', 'ringcentral', 'ivr-custom'].includes(integration.type);
 
   return (
     <div onClick={integration.type === 'tata' ? onOpenTata : undefined} role={integration.type === 'tata' ? 'button' : undefined} tabIndex={integration.type === 'tata' ? 0 : undefined} onKeyDown={(event) => { if (integration.type === 'tata' && (event.key === 'Enter' || event.key === ' ')) onOpenTata(); }} className={`card-base p-4 flex flex-col gap-3 hover:shadow-md transition-shadow ${integration.type === 'tata' ? 'cursor-pointer' : ''}`}>
@@ -177,14 +181,13 @@ function IntegrationGridCard({ integration, onViewDetails, onOpenTata }: { integ
 
       <div className="flex items-center justify-between text-[11px] text-muted-foreground">
         <span>{integration.owner}</span>
-        <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${envColor(integration.environment)}`}>
-          {integration.environment}
-        </span>
+
       </div>
 
       <div className="flex items-center gap-1.5 pt-1 border-t border-border">
         <span className="text-[10px] text-muted-foreground flex-1">Last sync: {integration.lastSync}</span>
-        {isTelephony && <Link href={`/integration-setup-wizard?type=${integration.type}`} onClick={(event) => event.stopPropagation()}><button className="h-6 px-2 text-[10px] font-medium text-primary bg-primary/10 border border-primary/20 rounded hover:bg-primary/20">Test</button></Link>}
+
+        <Link href={buildMonitorHref(integration)} onClick={(event) => event.stopPropagation()}><button className="flex items-center gap-1 h-6 px-2 text-[10px] font-medium bg-muted text-muted-foreground border border-transparent rounded hover:bg-primary/10 hover:text-primary transition-colors"><Activity size={10} /> Monitor</button></Link>
         <button onClick={(event) => { event.stopPropagation(); onViewDetails(integration); }} className="flex items-center gap-1 h-6 px-2 text-[10px] font-medium bg-primary/10 text-primary border border-primary/20 rounded hover:bg-primary/20 transition-colors"><ExternalLink size={10} /> Manage</button>
       </div>
     </div>
@@ -192,10 +195,14 @@ function IntegrationGridCard({ integration, onViewDetails, onOpenTata }: { integ
 }
 
 export default function IntegrationCenterContent() {
-  const [integrations, setIntegrations] = useState<Integration[]>(MOCK_INTEGRATIONS);
+  const [integrations, setIntegrations] = useState<Integration[]>(() =>
+    [...getActivatedIntegrations(), ...MOCK_INTEGRATIONS].filter((integration) => AVAILABLE_CONNECTOR_TYPES.has(integration.type))
+  );
+  const [editing, setEditing] = useState<Integration | null>(null);
   const [catalogOpen, setCatalogOpen] = useState(false);
   const [failedPanelOpen, setFailedPanelOpen] = useState(false);
   const [conversionAPIPanelOpen, setConversionAPIPanelOpen] = useState(false);
+  const [alertsPanelOpen, setAlertsPanelOpen] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [typeFilter, setTypeFilter] = useState<string>('all');
@@ -203,10 +210,12 @@ export default function IntegrationCenterContent() {
   const [loading] = useState(false);
   const [viewMode, setViewMode] = useState<'list' | 'grid'>('list');
   const [detailIntegration, setDetailIntegration] = useState<Integration | null>(null);
+  const [logsIntegration, setLogsIntegration] = useState<Integration | null>(null);
   const [tataPopupOpen, setTataPopupOpen] = useState(false);
 
   const handleDelete = (id: string) => {
     setIntegrations((prev) => prev.filter((i) => i.id !== id));
+    removeActivatedIntegration(id);
   };
 
   const stats = {
@@ -236,10 +245,17 @@ export default function IntegrationCenterContent() {
         <div>
           <h1 className="text-[22px] font-semibold text-foreground tracking-tight">Integration Center</h1>
           <p className="text-[13px] text-muted-foreground mt-0.5">
-            {MOCK_INTEGRATIONS.length} integrations configured · Last refreshed Sep 2, 2026 at 6:43 AM
+            {integrations.length} integrations configured · Last refreshed Sep 2, 2026 at 6:43 AM
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setAlertsPanelOpen(true)}
+            className="flex items-center gap-1.5 h-8 px-3 text-[12px] font-medium bg-card border border-border rounded-md hover:bg-muted transition-all text-muted-foreground"
+          >
+            <BellRing size={13} className="text-primary" />
+            <span className="hidden sm:block">Failure Alerts & Reports</span>
+          </button>
           <button
             onClick={() => setConversionAPIPanelOpen(true)}
             className="flex items-center gap-1.5 h-8 px-3 text-[12px] font-medium bg-card border border-border rounded-md hover:bg-muted transition-all text-muted-foreground"
@@ -293,7 +309,7 @@ export default function IntegrationCenterContent() {
         <div className="flex flex-col sm:flex-row sm:items-center gap-3 p-4 border-b border-border">
           <div className="flex-1">
             <h3 className="text-[14px] font-semibold text-foreground">All Integrations</h3>
-            <p className="text-[11px] text-muted-foreground">{filtered.length} of {MOCK_INTEGRATIONS.length} shown</p>
+            <p className="text-[11px] text-muted-foreground">{filtered.length} of {integrations.length} shown</p>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {/* Search */}
@@ -414,10 +430,11 @@ export default function IntegrationCenterContent() {
 
         {/* List or Grid view */}
         {viewMode === 'list' ? (
-          <IntegrationTable
+          <IntegrationTable onEdit={setEditing}
             integrations={filtered}
             loading={loading}
             onViewDetails={(i) => setDetailIntegration(i)}
+            onViewLogs={(i) => setLogsIntegration(i)}
             onOpenTata={() => setTataPopupOpen(true)}
             onDelete={handleDelete}
           />
@@ -447,8 +464,11 @@ export default function IntegrationCenterContent() {
       {/* Modals & Panels */}
       <IntegrationCatalogModal open={catalogOpen} onClose={() => setCatalogOpen(false)} presentation="drawer" />
       {failedPanelOpen && <FailedIntegrationsPanel onClose={() => setFailedPanelOpen(false)} />}
+      {alertsPanelOpen && <FailureAlertsPanel integrations={integrations} onClose={() => setAlertsPanelOpen(false)} />}
       {conversionAPIPanelOpen && <ConversionAPIPanel onClose={() => setConversionAPIPanelOpen(false)} />}
-      {detailIntegration && <IntegrationDetailModal integration={detailIntegration} onClose={() => setDetailIntegration(null)} />}
+      {editing && <IntegrationEditPanel key={editing.id} integration={editing} onClose={() => setEditing(null)} onSave={(value) => { setIntegrations((rows) => rows.map((row) => row.id === value.id ? value : row)); setEditing(null); }} />}
+      {detailIntegration && <IntegrationDetailModal onEdit={(i) => { setDetailIntegration(null); setEditing(i); }} integration={detailIntegration} onClose={() => setDetailIntegration(null)} />}
+      <IntegrationLogsPanel integration={logsIntegration} onClose={() => setLogsIntegration(null)} />
       <TataIntegrationPopup open={tataPopupOpen} onClose={() => setTataPopupOpen(false)} />
     </div>
   );

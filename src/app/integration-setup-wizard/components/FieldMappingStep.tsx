@@ -1,5 +1,6 @@
 'use client';
 
+import { useSetupState } from '@/app/components/integrationSetupStore';
 import React, { useState, useRef, useEffect } from 'react';
 import { ConnectorType, getConnectorLabel } from '@/components/ui/ConnectorIcon';
 import { mappingErrors, fieldValueError, mappedPayload } from './apiMapping';
@@ -282,7 +283,7 @@ export interface ApiMappingState {
 export default function FieldMappingStep({ connectorType, requestPayload, initialState, onStateChange }: FieldMappingStepProps) {
   const pendingFocus = useRef<string | null>(null);
   const sourceSelects = useRef<Record<string, HTMLSelectElement | null>>({});
-  const [mappings, setMappings] = useState<FieldMapping[]>(() => initialState?.mappings ?? (requestPayload ? Object.keys(requestPayload).map((sourceField, index) => {
+  const [mappings, setMappings] = useSetupState<FieldMapping[]>('api', 'FieldMappingStep.mappings', () => initialState?.mappings ?? (requestPayload ? Object.keys(requestPayload).map((sourceField, index) => {
     const aliases: Record<string, string> = { name: 'lead_name', full_name: 'lead_name', phone: 'mobile', phone_number: 'mobile', email_address: 'email', status: 'lead_status' };
     const destinationField = aliases[sourceField] ?? (destinationFields.includes(sourceField) ? sourceField : '');
     return { id: `map-${index}`, sourceField, destinationField, dataType: inferDataType(sourceField), operations: ['add'], transform: 'none', required: isRequiredDestField(destinationField), enabled: true, validationStatus: 'idle' } as FieldMapping;
@@ -296,7 +297,7 @@ export default function FieldMappingStep({ connectorType, requestPayload, initia
   const [showCompare, setShowCompare] = useState(false);
 
   // Capping
-  const [capping, setCapping] = useState<CappingConfig>(initialState?.capping ?? {
+  const [capping, setCapping] = useSetupState<CappingConfig>('api', 'FieldMappingStep.capping', initialState?.capping ?? {
     enabled: false,
     scope: 'primary_source',
     requestLimit: 100,
@@ -310,7 +311,7 @@ export default function FieldMappingStep({ connectorType, requestPayload, initia
   const [previewCapping, setPreviewCapping] = useState<SavedCapping | null>(null);
 
   // Static fields
-  const [staticFields, setStaticFields] = useState<ApiMappingState['staticFields']>(initialState?.staticFields ?? []);
+  const [staticFields, setStaticFields] = useSetupState<ApiMappingState['staticFields']>('api', 'FieldMappingStep.staticFields', initialState?.staticFields ?? []);
 
   useEffect(() => { onStateChange?.({ mappings, staticFields, capping }); }, [mappings, staticFields, capping, onStateChange]);
 

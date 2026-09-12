@@ -1,5 +1,6 @@
 'use client';
 
+import OverlayPortal from '@/components/ui/OverlayPortal';
 import React, { useState } from 'react';
 import {
   Check, ChevronRight, Copy, GitBranch, Link2, Loader2, RefreshCw, Trash2, X,
@@ -210,7 +211,7 @@ export default function ApiTestRequestStep({ integrationName, isNewIntegration =
 
       {/* Field Mapping — side panel */}
       {mappingPanel && (
-        <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
+        <OverlayPortal><div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => !creating && setMappingPanel(null)} />
           <div className="relative w-full sm:max-w-lg bg-card h-full shadow-2xl border-l border-border flex flex-col fade-in">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-orange-50 dark:bg-orange-950/20 flex-shrink-0">
@@ -260,7 +261,7 @@ export default function ApiTestRequestStep({ integrationName, isNewIntegration =
               </button>
             </div>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
     </div>
   );

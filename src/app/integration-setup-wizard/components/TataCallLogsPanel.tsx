@@ -1,5 +1,6 @@
 'use client';
 
+import OverlayPortal from '@/components/ui/OverlayPortal';
 import React, { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import {
@@ -111,7 +112,7 @@ export default function TataCallLogsPanel({ open, onClose, user }: TataCallLogsP
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
+    <OverlayPortal><div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div className="relative w-full sm:max-w-4xl bg-card h-full shadow-2xl border-l border-border flex flex-col fade-in">
         <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-orange-50 dark:bg-orange-950/20 flex-shrink-0">
@@ -202,6 +203,6 @@ export default function TataCallLogsPanel({ open, onClose, user }: TataCallLogsP
           </div>
         </div>
       </div>
-    </div>
+    </div></OverlayPortal>
   );
 }

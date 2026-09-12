@@ -1,5 +1,6 @@
 'use client';
 
+import { useSetupState, SetupEditContext, readSetup, saveSetup } from '@/app/components/integrationSetupStore';
 import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { ConnectorType, getConnectorLabel } from '@/components/ui/ConnectorIcon';
@@ -31,17 +32,17 @@ const LOGIN_URL_DEFAULTS: Record<string, string> = {
   tata: 'https://cloudphone.tatateleservices.com/login',
 };
 
-function TATADynamicSetup({ onSubmit, integrationName, onNameChange, onOutboundTestCallSuccess }: { onSubmit: (data: Record<string, string>) => void; integrationName: string; onNameChange: (name: string) => void; onOutboundTestCallSuccess?: () => void }) {
-  const [direction, setDirection] = useState<'Inbound' | 'Outbound'>('Inbound');
-  const [isExtension, setIsExtension] = useState(false);
-  const [activeStatus, setActiveStatus] = useState<'Active' | 'Inactive'>('Inactive');
-  const [values, setValues] = useState<Record<string, string>>({ empId: '081818881818' });
+function TATADynamicSetup({ connectorType, onSubmit, integrationName, onNameChange, onOutboundTestCallSuccess }: { connectorType: ConnectorType; onSubmit: (data: Record<string, string>) => void; integrationName: string; onNameChange: (name: string) => void; onOutboundTestCallSuccess?: () => void }) {
+  const [direction, setDirection] = useSetupState<'Inbound' | 'Outbound'>(connectorType, 'DynamicConfigForm.direction', 'Inbound');
+  const [isExtension, setIsExtension] = useSetupState(connectorType, 'DynamicConfigForm.isExtension', false);
+  const [activeStatus, setActiveStatus] = useSetupState<'Active' | 'Inactive'>(connectorType, 'DynamicConfigForm.activeStatus', 'Inactive');
+  const [values, setValues] = useSetupState<Record<string, string>>(connectorType, 'DynamicConfigForm.values', { empId: '081818881818' });
   const [nameTouched, setNameTouched] = useState(false);
-  const [loginUrl, setLoginUrl] = useState(LOGIN_URL_DEFAULTS.tata);
-  const [loginId, setLoginId] = useState('');
+  const [loginUrl, setLoginUrl] = useSetupState(connectorType, 'DynamicConfigForm.loginUrl', LOGIN_URL_DEFAULTS[connectorType] ?? '');
+  const [loginId, setLoginId] = useSetupState(connectorType, 'DynamicConfigForm.loginId', '');
   const [password, setPassword] = useState('');
   const [loginPopupOpen, setLoginPopupOpen] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<'idle' | 'connected'>('idle');
+  const [connectionStatus, setConnectionStatus] = useSetupState<'idle' | 'connected'>(connectorType, 'DynamicConfigForm.connectionStatus', 'idle');
   const textClass = 'w-full h-9 px-3 text-[13px] bg-card rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all';
   const labelClass = 'block text-[12px] font-semibold text-foreground mb-1';
   const nameInvalid = nameTouched && !integrationName.trim();
@@ -65,7 +66,7 @@ function TATADynamicSetup({ onSubmit, integrationName, onNameChange, onOutboundT
           value={integrationName}
           onChange={(event) => { onNameChange(event.target.value); if (nameTouched) setNameTouched(false); }}
           onBlur={() => setNameTouched(true)}
-          placeholder="e.g. TATA - Main IVR"
+          placeholder={`e.g. ${getConnectorLabel(connectorType)} - Main IVR`}
           className={`${textClass} ${nameInvalid ? 'border-danger focus:ring-2 focus:ring-danger/20 focus:border-danger' : ''}`}
         />
         {nameInvalid && (
@@ -74,11 +75,11 @@ function TATADynamicSetup({ onSubmit, integrationName, onNameChange, onOutboundT
           </p>
         )}
       </label>
-      <div className="flex items-center gap-3"><span className="h-px flex-1 bg-border" /><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">TATA Settings</span><span className="h-px flex-1 bg-border" /></div>
+      <div className="flex items-center gap-3"><span className="h-px flex-1 bg-border" /><span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">{getConnectorLabel(connectorType)} Settings</span><span className="h-px flex-1 bg-border" /></div>
       <div className="flex items-center justify-between gap-4 p-4 rounded-xl border border-border bg-muted/30">
         <div>
           <p className="text-[13px] font-semibold text-foreground">Integration Direction</p>
-          <p className="text-[11px] text-muted-foreground mt-0.5">Choose how TATA IVR should handle calls.</p>
+          <p className="text-[11px] text-muted-foreground mt-0.5">Choose how {getConnectorLabel(connectorType)} IVR should handle calls.</p>
         </div>
         <div className="inline-flex rounded-lg border border-border bg-card p-0.5">
           {(['Inbound', 'Outbound'] as const).map((option) => (
@@ -124,14 +125,14 @@ function TATADynamicSetup({ onSubmit, integrationName, onNameChange, onOutboundT
 
       {/* Kept mounted (just hidden) so the outbound user list survives switching direction back and forth. */}
       <div className={direction === 'Outbound' ? '' : 'hidden'}>
-        <TataOutboundUserManagement onTestCallSuccess={onOutboundTestCallSuccess} />
+        <TataOutboundUserManagement connectorType={connectorType} onTestCallSuccess={onOutboundTestCallSuccess} />
       </div>
 
       <Modal
         open={loginPopupOpen}
         onClose={() => setLoginPopupOpen(false)}
-        title="Connect to TATA"
-        subtitle="Sign in with your TATA Cloud Phone credentials"
+        title={`Connect to ${getConnectorLabel(connectorType)}`}
+        subtitle={`Sign in with your ${getConnectorLabel(connectorType)} credentials`}
         size="2xl"
         footer={
           <div className="flex items-center justify-between w-full gap-3">
@@ -151,7 +152,7 @@ function TATADynamicSetup({ onSubmit, integrationName, onNameChange, onOutboundT
             <span className="truncate font-tabular">{loginUrl}</span>
           </div>
           <div className="rounded-lg border border-border overflow-hidden bg-white" style={{ height: 420 }}>
-            <iframe src={loginUrl} title="TATA Login" className="w-full h-full border-0" />
+            <iframe src={loginUrl} title={`${getConnectorLabel(connectorType)} Login`} className="w-full h-full border-0" />
           </div>
           <p className="flex items-start gap-1.5 text-[11px] text-muted-foreground">
             <Info size={12} className="flex-shrink-0 mt-0.5" />
@@ -172,11 +173,10 @@ const ARCHITECTURE_CAPABILITIES: Record<string, { provider: string; capabilities
   'google-forms':{ provider: 'Google Workspace', capabilities: ['Form Response Sync', 'Polling', 'Sheet Integration'],                    authType: 'Service Account',        webhookSupport: false, eventTypes: ['form_response'] },
   justdial:     { provider: 'JustDial Business',  capabilities: ['Lead Import', 'Webhook Push', 'Category Filter'],                       authType: 'API Key',                webhookSupport: true,  eventTypes: ['new_lead', 'lead_update'] },
   linkedin:     { provider: 'LinkedIn + Pabbly',  capabilities: ['Lead Gen Forms', 'Pabbly Relay', 'Ad Account Sync'],                    authType: 'OAuth 2.0 via Pabbly',   webhookSupport: true,  eventTypes: ['lead_gen_form_response'] },
-  wordpress:    { provider: 'WordPress REST API', capabilities: ['Form Plugin Integration', 'Webhook Push', 'REST Pull'],                  authType: 'Webhook Secret',         webhookSupport: true,  eventTypes: ['form_submit', 'contact_form'] },
+
+
   api:          { provider: 'Generic REST API',   capabilities: ['HTTP Push/Pull', 'Custom Headers', 'Auth Flexible'],                    authType: 'Bearer / API Key / Basic',webhookSupport: true,  eventTypes: ['http_post', 'http_get', 'webhook'] },
-  js:           { provider: 'JS Snippet',         capabilities: ['Form Capture', 'DOM Listener', 'SPA Support'],                          authType: 'Snippet Token',          webhookSupport: false, eventTypes: ['form_submit', 'field_change'] },
-  php:          { provider: 'PHP Webhook',        capabilities: ['Server-side POST', 'IP Whitelist', 'Schema Validation'],                authType: 'Auth Token Header',      webhookSupport: true,  eventTypes: ['webhook_post'] },
-  'id-based':   { provider: 'Custom Source',      capabilities: ['ID Lookup', 'API Pull', 'Deduplication'],                               authType: 'API Key',                webhookSupport: false, eventTypes: ['id_lookup', 'data_pull'] },
+
   ivr:          { provider: 'Generic IVR',        capabilities: ['Call Tracking', 'Lead Capture', 'Webhook Push'],                        authType: 'API Key + Secret',       webhookSupport: true,  eventTypes: ['call_connected', 'call_ended', 'lead_captured'] },
   twilio:       { provider: 'Twilio',             capabilities: ['Programmable Voice', 'Studio Flows', 'Call Tracking', 'SMS'],           authType: 'Account SID + Auth Token',webhookSupport: true, eventTypes: ['call.initiated', 'call.completed', 'recording.completed'] },
   tata:         { provider: 'TATA Tele Business Services', capabilities: ['Inbound Calls', 'Outbound Calls', 'IVR', 'Call Recording'], authType: 'API Key + Token', webhookSupport: true, eventTypes: ['call.incoming', 'call.outgoing', 'call.completed'] },
@@ -188,7 +188,9 @@ const ARCHITECTURE_CAPABILITIES: Record<string, { provider: string; capabilities
   ringcentral:  { provider: 'RingCentral',        capabilities: ['UCaaS', 'IVR', 'Call Queues', 'Webhooks', 'Analytics'],                 authType: 'OAuth 2.0',              webhookSupport: true,  eventTypes: ['telephony.sessions', 'call.log', 'voicemail'] },
   'ivr-custom': { provider: 'Custom / Internal',  capabilities: ['Flexible Webhook', 'Custom Schema', 'IP Whitelist'],                    authType: 'Custom Token',           webhookSupport: true,  eventTypes: ['custom_event', 'call_event'] },
   'erp-crm':    { provider: 'ERP / CRM Platform', capabilities: ['Bidirectional Sync', 'Object Mapping', 'Delta Sync'],                  authType: 'OAuth 2.0',              webhookSupport: true,  eventTypes: ['record_created', 'record_updated', 'record_deleted'] },
-  zapier:       { provider: 'Zapier',             capabilities: ['5000+ App Connections', 'Catch Hook', 'Multi-step Zaps'],               authType: 'Webhook URL',            webhookSupport: true,  eventTypes: ['zap_trigger', 'webhook_catch'] },
+  'pull-from-crm': { provider: 'CRM Platform',    capabilities: ['Scheduled Pull', 'Object Mapping', 'Delta Sync'],                       authType: 'OAuth 2.0',              webhookSupport: false, eventTypes: ['record_pulled'] },
+  'pull-from-erp': { provider: 'ERP Platform',    capabilities: ['Scheduled Pull', 'Object Mapping', 'Delta Sync'],                       authType: 'OAuth 2.0',              webhookSupport: false, eventTypes: ['record_pulled'] },
+  'erp-two-way':   { provider: 'ERP + CRM Platform', capabilities: ['Bidirectional Sync', 'Conflict Resolution', 'Delta Sync'],           authType: 'OAuth 2.0',              webhookSupport: true,  eventTypes: ['record_created', 'record_updated', 'record_deleted'] },
 };
 
 const connectorFields: Partial<Record<ConnectorType, FormField[]>> = {
@@ -299,12 +301,8 @@ const connectorFields: Partial<Record<ConnectorType, FormField[]>> = {
     { name: 'ipWhitelist',     label: 'IP Whitelist (optional)',   type: 'text',     placeholder: '203.0.113.0, 198.51.100.0',        required: false, helper: 'Restrict webhook calls to specific IPs' },
     { name: 'payloadSchema',   label: 'Expected Payload Fields',  type: 'text',     placeholder: 'caller_id,duration,status,agent',  required: false, helper: 'Comma-separated field names your vendor sends' },
   ],
-  zapier: [
-    { name: 'zapierWebhookUrl',label: 'Zapier Webhook URL',       type: 'url',      placeholder: 'https://hooks.zapier.com/hooks/catch/...', required: true, helper: 'Create a Zap with "Webhooks by Zapier" as trigger' },
-    { name: 'zapName',         label: 'Zap Name / Reference',     type: 'text',     placeholder: 'e.g. HubSpot → IntegrationHub',    required: true },
-    { name: 'authHeader',      label: 'Auth Header (optional)',   type: 'password', placeholder: 'Bearer token or API key',          required: false },
-    { name: 'retryOnFailure',  label: 'Retry on Failure',         type: 'select',   placeholder: '',                                 required: true,  options: [{ value: 'yes', label: 'Yes — up to 3 retries' }, { value: 'no', label: 'No — fail immediately' }] },
-  ],
+
+
   api: [
     { name: 'httpMethod',      label: 'HTTP Method',              type: 'select',   placeholder: '',                                 required: true,  options: [{ value: 'POST', label: 'POST' }, { value: 'GET', label: 'GET' }, { value: 'PUT', label: 'PUT' }, { value: 'PATCH', label: 'PATCH' }] },
     { name: 'authType',        label: 'Authentication Type',      type: 'select',   placeholder: '',                                 required: true,  options: [{ value: 'bearer', label: 'Bearer Token' }, { value: 'apikey', label: 'API Key Header' }, { value: 'basic', label: 'Basic Auth' }, { value: 'none', label: 'No Auth' }] },
@@ -324,37 +322,35 @@ const connectorFields: Partial<Record<ConnectorType, FormField[]>> = {
     { name: 'webhookSecret',   label: 'Webhook Secret',           type: 'password', placeholder: 'Secret for verifying JustDial callbacks', required: true },
     { name: 'leadCategory',    label: 'Lead Category Filter',     type: 'text',     placeholder: 'e.g. Real Estate (blank = all)',   required: false },
   ],
-  wordpress: [
-    { name: 'siteUrl',         label: 'WordPress Site URL',       type: 'url',      placeholder: 'https://yoursite.com',             required: true },
-    { name: 'pluginType',      label: 'Form Plugin',              type: 'select',   placeholder: '',                                 required: true,  options: [{ value: 'cf7', label: 'Contact Form 7' }, { value: 'gravityforms', label: 'Gravity Forms' }, { value: 'wpforms', label: 'WPForms' }, { value: 'elementor', label: 'Elementor Forms' }] },
-    { name: 'formId',          label: 'Form ID',                  type: 'text',     placeholder: 'e.g. 42',                          required: true },
-    { name: 'webhookSecret',   label: 'Webhook Secret',           type: 'password', placeholder: 'Secret token for webhook validation', required: true },
-    { name: 'restApiKey',      label: 'WP REST API Key (optional)',type: 'password', placeholder: 'For reading existing entries',     required: false },
-  ],
-  js: [
-    { name: 'websiteUrl',      label: 'Target Website URL',       type: 'url',      placeholder: 'https://yourlandingpage.com',      required: true },
-    { name: 'formSelector',    label: 'Form CSS Selector',        type: 'text',     placeholder: 'e.g. #contact-form, .lead-form',   required: true,  helper: 'CSS selector to identify the form to capture' },
-    { name: 'captureFields',   label: 'Fields to Capture',        type: 'text',     placeholder: 'name,email,phone,city',            required: true,  helper: 'Comma-separated list of input name attributes' },
-    { name: 'dedupeField',     label: 'Deduplication Field',      type: 'select',   placeholder: '',                                 required: true,  options: [{ value: 'email', label: 'Email' }, { value: 'phone', label: 'Phone' }, { value: 'none', label: 'No Deduplication' }] },
-  ],
-  php: [
-    { name: 'webhookEndpoint', label: 'IntegrationHub Webhook URL',type: 'url',     placeholder: 'Auto-generated after save',        required: false, helper: 'Copy this URL into your PHP script to POST data' },
-    { name: 'authToken',       label: 'Webhook Auth Token',       type: 'password', placeholder: 'Auto-generated — used in Authorization header', required: false },
-    { name: 'expectedFields',  label: 'Expected POST Fields',     type: 'text',     placeholder: 'name,email,phone,source',          required: true,  helper: 'Fields your PHP script will send in the POST body' },
-    { name: 'ipWhitelist',     label: 'IP Whitelist (optional)',   type: 'text',     placeholder: '203.0.113.0, 198.51.100.0',        required: false, helper: 'Restrict webhook calls to specific IPs' },
-  ],
-  'id-based': [
-    { name: 'identifierField', label: 'Identifier Field Name',    type: 'text',     placeholder: 'e.g. lead_id, customer_id',        required: true },
-    { name: 'sourceSystem',    label: 'Source System',            type: 'text',     placeholder: 'e.g. Salesforce, Zoho, Custom CRM', required: true },
-    { name: 'lookupApiUrl',    label: 'Lookup API URL',           type: 'url',      placeholder: 'https://api.crm.com/v1/leads/{id}', required: true, helper: 'Use {id} as placeholder for the identifier value' },
-    { name: 'apiKey',          label: 'Lookup API Key',           type: 'password', placeholder: 'API key for the source system',    required: true },
-  ],
+
   'erp-crm': [
     { name: 'erpSystem',       label: 'ERP/CRM Platform',         type: 'select',   placeholder: '',                                 required: true,  options: [{ value: 'salesforce', label: 'Salesforce' }, { value: 'zoho', label: 'Zoho CRM' }, { value: 'hubspot', label: 'HubSpot' }, { value: 'sap', label: 'SAP' }, { value: 'oracle', label: 'Oracle CRM' }, { value: 'custom', label: 'Custom ERP' }] },
     { name: 'instanceUrl',     label: 'Instance / API URL',       type: 'url',      placeholder: 'https://yourcompany.salesforce.com', required: true },
     { name: 'clientId',        label: 'OAuth Client ID',          type: 'text',     placeholder: 'Connected App Client ID',          required: true },
     { name: 'clientSecret',    label: 'OAuth Client Secret',      type: 'password', placeholder: 'Connected App Client Secret',      required: true },
     { name: 'syncDirection',   label: 'Sync Direction',           type: 'select',   placeholder: '',                                 required: true,  options: [{ value: 'inbound', label: 'Inbound only (ERP → Hub)' }, { value: 'outbound', label: 'Outbound only (Hub → ERP)' }, { value: 'bidirectional', label: 'Bidirectional' }] },
+    { name: 'syncInterval',    label: 'Sync Interval (minutes)',  type: 'number',   placeholder: '15',                               required: true },
+  ],
+  'pull-from-crm': [
+    { name: 'erpSystem',       label: 'CRM Platform',             type: 'select',   placeholder: '',                                 required: true,  options: [{ value: 'salesforce', label: 'Salesforce' }, { value: 'zoho', label: 'Zoho CRM' }, { value: 'hubspot', label: 'HubSpot' }, { value: 'custom', label: 'Custom CRM' }] },
+    { name: 'instanceUrl',     label: 'Instance / API URL',       type: 'url',      placeholder: 'https://yourcompany.salesforce.com', required: true },
+    { name: 'clientId',        label: 'OAuth Client ID',          type: 'text',     placeholder: 'Connected App Client ID',          required: true },
+    { name: 'clientSecret',    label: 'OAuth Client Secret',      type: 'password', placeholder: 'Connected App Client Secret',      required: true },
+    { name: 'syncInterval',    label: 'Pull Interval (minutes)',  type: 'number',   placeholder: '15',                               required: true },
+  ],
+  'pull-from-erp': [
+    { name: 'erpSystem',       label: 'ERP Platform',             type: 'select',   placeholder: '',                                 required: true,  options: [{ value: 'sap', label: 'SAP' }, { value: 'oracle', label: 'Oracle ERP' }, { value: 'custom', label: 'Custom ERP' }] },
+    { name: 'instanceUrl',     label: 'Instance / API URL',       type: 'url',      placeholder: 'https://yourcompany.erp.com',      required: true },
+    { name: 'clientId',        label: 'OAuth Client ID',          type: 'text',     placeholder: 'Connected App Client ID',          required: true },
+    { name: 'clientSecret',    label: 'OAuth Client Secret',      type: 'password', placeholder: 'Connected App Client Secret',      required: true },
+    { name: 'syncInterval',    label: 'Pull Interval (minutes)',  type: 'number',   placeholder: '15',                               required: true },
+  ],
+  'erp-two-way': [
+    { name: 'erpSystem',       label: 'ERP/CRM Platform',         type: 'select',   placeholder: '',                                 required: true,  options: [{ value: 'salesforce', label: 'Salesforce' }, { value: 'zoho', label: 'Zoho CRM' }, { value: 'sap', label: 'SAP' }, { value: 'oracle', label: 'Oracle CRM' }, { value: 'custom', label: 'Custom ERP' }] },
+    { name: 'instanceUrl',     label: 'Instance / API URL',       type: 'url',      placeholder: 'https://yourcompany.salesforce.com', required: true },
+    { name: 'clientId',        label: 'OAuth Client ID',          type: 'text',     placeholder: 'Connected App Client ID',          required: true },
+    { name: 'clientSecret',    label: 'OAuth Client Secret',      type: 'password', placeholder: 'Connected App Client Secret',      required: true },
+    { name: 'syncDirection',   label: 'Sync Direction',           type: 'select',   placeholder: '',                                 required: true,  options: [{ value: 'bidirectional', label: 'Bidirectional' }] },
     { name: 'syncInterval',    label: 'Sync Interval (minutes)',  type: 'number',   placeholder: '15',                               required: true },
   ],
 };
@@ -416,20 +412,29 @@ function ArchitecturePanel({ connectorType }: { connectorType: ConnectorType }) 
 }
 
 export default function DynamicConfigForm({ connectorType, onSubmit, integrationName, onNameChange, onOutboundTestCallSuccess }: DynamicConfigFormProps) {
-  const { register, handleSubmit, formState: { errors } } = useForm<Record<string, string>>();
+  const editContext = React.useContext(SetupEditContext);
+  const storedConfig = editContext?.values[`${connectorType}.configuration`] as Record<string, string> | undefined;
+  const { register, handleSubmit, watch, formState: { errors } } = useForm<Record<string, string>>({ defaultValues: storedConfig });
+  React.useEffect(() => {
+    const subscription = watch((values) => {
+      if (editContext) editContext.values[`${connectorType}.configuration`] = values;
+      else try { saveSetup(`draft:${connectorType}`, { ...readSetup(`draft:${connectorType}`), [`${connectorType}.configuration`]: values }); } catch { /* Browser storage is optional. */ }
+    });
+    return () => subscription.unsubscribe();
+  }, [watch, editContext, connectorType]);
   const fields = connectorFields[connectorType] ?? [];
 
-  if (connectorType === 'tata' || connectorType === 'ivr-custom') {
+  if (['tata', 'exotel', 'knowlarity', 'mcube', 'ozonetel', 'myoperator', 'ivr-custom'].includes(connectorType)) {
     return (
       <div>
         <div className="flex items-center gap-3 mb-5 p-3 bg-muted/50 rounded-lg border border-border">
-          <ConnectorIcon type="tata" size={40} />
+          <ConnectorIcon type={connectorType} size={40} />
           <div>
-            <p className="text-[14px] font-semibold text-foreground">TATA Configuration</p>
+            <p className="text-[14px] font-semibold text-foreground">{getConnectorLabel(connectorType)} Configuration</p>
             <p className="text-[11px] text-muted-foreground">Fill in the required credentials and settings below</p>
           </div>
         </div>
-        <TATADynamicSetup onSubmit={onSubmit} integrationName={integrationName} onNameChange={onNameChange} onOutboundTestCallSuccess={onOutboundTestCallSuccess} />
+        <TATADynamicSetup key={connectorType} connectorType={connectorType} onSubmit={onSubmit} integrationName={integrationName} onNameChange={onNameChange} onOutboundTestCallSuccess={onOutboundTestCallSuccess} />
       </div>
     );
   }

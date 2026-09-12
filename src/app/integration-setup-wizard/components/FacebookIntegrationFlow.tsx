@@ -1,10 +1,13 @@
 'use client';
 
+import { useSetupState } from '@/app/components/integrationSetupStore';
 import FacebookPagesForms from './FacebookPagesForms';
 import React, { useState, useEffect, useRef } from 'react';
+import Link from 'next/link';
 import {
   CheckCircle2,
   ChevronDown,
+  ChevronLeft,
   ExternalLink,
   RefreshCw,
   X,
@@ -14,6 +17,8 @@ import {
   Settings,
   Info,
 } from 'lucide-react';
+
+const btnGhost = 'inline-flex items-center justify-center gap-1.5 h-9 px-3.5 text-[12px] font-semibold rounded-lg transition-all bg-card border border-border text-foreground hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed';
 
 interface LeadForm {
   id: string;
@@ -196,8 +201,8 @@ function TestLeadVerifiedPanel() {
 }
 
 export default function FacebookIntegrationFlow({ onTestLeadRetrieved }: FacebookIntegrationFlowProps) {
-  const [connectionState, setConnectionState] = useState<ConnectionState>('idle');
-  const [selectedPageId, setSelectedPageId] = useState<string>('');
+  const [connectionState, setConnectionState] = useSetupState<ConnectionState>('facebook', 'FacebookIntegrationFlow.connectionState', 'idle');
+  const [selectedPageId, setSelectedPageId] = useSetupState<string>('facebook', 'FacebookIntegrationFlow.selectedPageId', '');
   const [pageDropdownOpen, setPageDropdownOpen] = useState(false);
   const [fetchingLeadFor, setFetchingLeadFor] = useState<string | null>(null);
   const [testLeadResults, setTestLeadResults] = useState<Record<string, TestLeadResult | null>>({});
@@ -308,69 +313,86 @@ export default function FacebookIntegrationFlow({ onTestLeadRetrieved }: Faceboo
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div className="flex items-center gap-3">
-        <div className="w-10 h-10 rounded-xl bg-[#1877F2] flex items-center justify-center shadow-sm">
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-[#1877F2] flex items-center justify-center shadow-sm">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="white"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+          </div>
+          <div>
+            <h1 className="text-[18px] font-semibold text-foreground tracking-tight">Facebook Lead Ads Integration</h1>
+            <p className="text-[12px] text-muted-foreground mt-0.5">Step 1 of 1 — Connect your Facebook account and map leads to CRM.</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-[16px] font-semibold text-foreground">Facebook Lead Ads Integration</h2>
-          <p className="text-[12px] text-muted-foreground mt-0.5">Connect your Facebook account to capture leads from Lead Ads forms.</p>
+        <Link href="/">
+          <button className={btnGhost}><ChevronLeft size={13} />Back to Integration Center</button>
+        </Link>
+      </div>
+
+      {/* ── Facebook Connection ── */}
+      <div className="rounded-xl border border-border bg-card overflow-hidden">
+        <div className="border-b border-border px-4 py-3">
+          <h3 className="text-[13px] font-semibold text-foreground">Facebook Connection</h3>
+        </div>
+        <div className="p-4 space-y-4">
+          <p className="text-[12px] text-muted-foreground leading-relaxed">
+            Connect your Facebook account for Lead Ads. Click below to open the Facebook OAuth flow in a popup; after connecting, the callback page should postMessage to close the popup.
+          </p>
+
+          {/* ── STEP 1: Connect ── */}
+          {connectionState === 'idle' && (
+            <div className="flex flex-col items-center text-center gap-4 py-2">
+              <div className="w-14 h-14 rounded-full bg-[#1877F2]/10 flex items-center justify-center">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="#1877F2"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+              </div>
+              <div>
+                <p className="text-[14px] font-semibold text-foreground">Connect your Facebook Account</p>
+                <p className="text-[12px] text-muted-foreground mt-1 max-w-sm">
+                  Authorize access to your Facebook Pages and Lead Ads forms via secure OAuth.
+                </p>
+              </div>
+              <button
+                onClick={handleConnect}
+                className="flex items-center gap-2 h-10 px-6 text-[13px] font-semibold bg-[#1877F2] text-white rounded-lg hover:bg-[#166FE5] active:scale-95 transition-all shadow-sm"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="white"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
+                Connect Facebook
+              </button>
+            </div>
+          )}
+
+          {/* ── STEP 1b: Connecting (loading) ── */}
+          {connectionState === 'connecting' && (
+            <div className="flex flex-col items-center text-center gap-3 py-2">
+              <Loader2 size={32} className="text-[#1877F2] animate-spin" />
+              <p className="text-[13px] font-medium text-foreground">Waiting for Facebook authorization…</p>
+              <p className="text-[12px] text-muted-foreground">Complete the login in the popup window.</p>
+            </div>
+          )}
+
+          {/* ── STEP 2: Connected ── */}
+          {connectionState === 'connected' && (
+            <div className="flex items-center gap-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-xl px-5 py-3.5">
+              <CheckCircle2 size={20} className="text-green-600 flex-shrink-0" />
+              <div className="flex-1">
+                <p className="text-[13px] font-semibold text-green-800 dark:text-green-400">Facebook Connected Successfully</p>
+                <p className="text-[12px] text-green-700 dark:text-green-500 mt-0.5">Your Facebook account has been authorized. Select a page to continue.</p>
+              </div>
+              <button
+                onClick={handleReConnect}
+                className="flex items-center gap-1.5 h-8 px-3 text-[12px] font-medium bg-white dark:bg-card border border-green-300 dark:border-green-700 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30 active:scale-95 transition-all flex-shrink-0"
+                title="Re-authenticate with Facebook"
+              >
+                <RefreshCw size={12} />
+                Re-Connect
+              </button>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* ── STEP 1: Connect ── */}
-      {connectionState === 'idle' && (
-        <div className="border border-border rounded-xl p-6 flex flex-col items-center text-center gap-4 bg-muted/20">
-          <div className="w-14 h-14 rounded-full bg-[#1877F2]/10 flex items-center justify-center">
-            <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="#1877F2"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
-          </div>
-          <div>
-            <p className="text-[14px] font-semibold text-foreground">Connect your Facebook Account</p>
-            <p className="text-[12px] text-muted-foreground mt-1 max-w-sm">
-              Authorize access to your Facebook Pages and Lead Ads forms via secure OAuth.
-            </p>
-          </div>
-          <button
-            onClick={handleConnect}
-            className="flex items-center gap-2 h-10 px-6 text-[13px] font-semibold bg-[#1877F2] text-white rounded-lg hover:bg-[#166FE5] active:scale-95 transition-all shadow-sm"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="white"><path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/></svg>
-            Connect Facebook
-          </button>
-        </div>
-      )}
-
-      {/* ── STEP 1b: Connecting (loading) ── */}
-      {connectionState === 'connecting' && (
-        <div className="border border-border rounded-xl p-6 flex flex-col items-center text-center gap-3 bg-muted/20">
-          <Loader2 size={32} className="text-[#1877F2] animate-spin" />
-          <p className="text-[13px] font-medium text-foreground">Waiting for Facebook authorization…</p>
-          <p className="text-[12px] text-muted-foreground">Complete the login in the popup window.</p>
-        </div>
-      )}
-
-      {/* ── STEP 2: Connected ── */}
+      {/* ── Facebook Pages / Forms — available once connected ── */}
       {connectionState === 'connected' && (
-        <div className="space-y-5">
-          {/* Success banner */}
-          <div className="flex items-center gap-3 bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded-xl px-5 py-3.5">
-            <CheckCircle2 size={20} className="text-green-600 flex-shrink-0" />
-            <div className="flex-1">
-              <p className="text-[13px] font-semibold text-green-800 dark:text-green-400">Facebook Connected Successfully</p>
-              <p className="text-[12px] text-green-700 dark:text-green-500 mt-0.5">Your Facebook account has been authorized. Select a page to continue.</p>
-            </div>
-            <button
-              onClick={handleReConnect}
-              className="flex items-center gap-1.5 h-8 px-3 text-[12px] font-medium bg-white dark:bg-card border border-green-300 dark:border-green-700 text-green-700 dark:text-green-400 rounded-lg hover:bg-green-50 dark:hover:bg-green-900/30 active:scale-95 transition-all flex-shrink-0"
-              title="Re-authenticate with Facebook"
-            >
-              <RefreshCw size={12} />
-              Re-Connect
-            </button>
-          </div>
-
-          <FacebookPagesForms onReady={onTestLeadRetrieved} />
-        </div>
+        <FacebookPagesForms onReady={onTestLeadRetrieved} />
       )}
 
       {/* No test lead modal */}

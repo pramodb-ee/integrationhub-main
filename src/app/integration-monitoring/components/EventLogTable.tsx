@@ -48,9 +48,10 @@ type SortKey = keyof EventLog;
 interface EventLogTableProps {
   loading?: boolean;
   filters: { status: string; connector: string; search: string };
+  lockedIntegrationName?: string;
 }
 
-export default function EventLogTable({ loading, filters }: EventLogTableProps) {
+export default function EventLogTable({ loading, filters, lockedIntegrationName }: EventLogTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('timestamp');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -63,13 +64,14 @@ export default function EventLogTable({ loading, filters }: EventLogTableProps) 
   };
 
   const filtered = MOCK_LOGS.filter((log) => {
+    const matchLocked = !lockedIntegrationName || log.integrationName === lockedIntegrationName;
     const matchStatus = filters.status === 'all' || log.status === filters.status;
     const matchConnector = filters.connector === 'all' || log.connectorType === filters.connector;
     const matchSearch = !filters.search ||
       log.integrationName.toLowerCase().includes(filters.search.toLowerCase()) ||
       log.id.toLowerCase().includes(filters.search.toLowerCase()) ||
       (log.errorCode ?? '').toLowerCase().includes(filters.search.toLowerCase());
-    return matchStatus && matchConnector && matchSearch;
+    return matchLocked && matchStatus && matchConnector && matchSearch;
   });
 
   const sorted = [...filtered].sort((a, b) => {

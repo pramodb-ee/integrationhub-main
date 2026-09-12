@@ -1,8 +1,11 @@
 'use client';
 
+import { useSetupState } from '@/app/components/integrationSetupStore';
 import React, { useState } from 'react';
 import { AlertTriangle, CheckCircle2, Info, Plus, RefreshCw, Trash2 } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
+import { addActivatedIntegration } from '@/app/components/activatedIntegrationsStore';
+import type { Integration } from '@/app/components/IntegrationTable';
 
 type Mapping = { source: string; target: string };
 type Entry = {
@@ -114,7 +117,7 @@ function Section({
   action?: React.ReactNode;
 }) {
   return (
-    <section className="overflow-hidden rounded-lg border border-border">
+    <section className="overflow-hidden rounded-lg border border-border bg-card">
       <div className="flex items-center justify-between border-b border-border px-3 py-2">
         <h3 className="text-xs font-semibold">{title}</h3>
         {action}
@@ -125,9 +128,9 @@ function Section({
 }
 
 export default function FacebookPagesForms({ onReady }: { onReady?: (ready: boolean) => void }) {
-  const [entries, setEntries] = useState<Entry[]>(seed);
-  const [kind, setKind] = useState<'forms' | 'pages' | ''>('');
-  const [page, setPage] = useState(PAGES[0]);
+  const [entries, setEntries] = useSetupState<Entry[]>('facebook', 'FacebookPagesForms.entries', seed);
+  const [kind, setKind] = useSetupState<'forms' | 'pages' | ''>('facebook', 'FacebookPagesForms.kind', '');
+  const [page, setPage] = useSetupState('facebook', 'FacebookPagesForms.page', PAGES[0]);
   const [warning, setWarning] = useState<Entry | null>(null);
   const [draft, setDraft] = useState<Entry | null>(null);
   const [notice, setNotice] = useState('');
@@ -149,8 +152,9 @@ export default function FacebookPagesForms({ onReady }: { onReady?: (ready: bool
     };
     setLeads((all) => ({ ...all, [entry.id]: lead }));
     setEntries((all) => all.map((e) => (e.id === entry.id ? { ...e, fetched: true } : e)));
-    setLeadEntry(entry);
     setNotice(`${entry.name}: Lead Fetch Successful (demo).`);
+    // A successful fetch takes the user straight into Map Fields for this page/form.
+    open(entry);
   };
   const open = (entry: Entry) => setDraft(structuredClone(entry));
   const update = (patch: Partial<Entry>) => setDraft((d) => (d ? { ...d, ...patch } : d));
@@ -205,6 +209,21 @@ export default function FacebookPagesForms({ onReady }: { onReady?: (ready: bool
   const publish = (entry: Entry) => {
     setEntries((all) => all.map((e) => (e.id === entry.id ? { ...e, published: true } : e)));
     setNotice(`${entry.name}: demo mapping published.`);
+    const row: Integration = {
+      id: `int-facebook-${entry.id}`,
+      name: `Facebook Lead Ads - ${entry.name}`,
+      type: 'facebook',
+      status: 'active',
+      lastSync: 'Just now',
+      events24h: 0,
+      successRate: 0,
+      latencyMs: 0,
+      owner: 'Pramod Bhujbal',
+      created: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      environment: 'production',
+      errorCount: 0,
+    };
+    addActivatedIntegration(row);
   };
   return (
     <div className="space-y-5">
@@ -223,40 +242,42 @@ export default function FacebookPagesForms({ onReady }: { onReady?: (ready: bool
           <option value="success">Test lead available</option>
         </select>
       </details>
-      <label className="block max-w-md space-y-2 text-sm">
-        Integration Flow
-        <select
-          className={control}
-          value={kind}
-          onChange={(e) => {
-            setKind(e.target.value as typeof kind);
-            setNotice('');
-            onReady?.(false);
-          }}
-        >
-          <option value="">Select Facebook Page or Facebook Forms</option>
-          <option value="pages">Facebook Page</option>
-          <option value="forms">Facebook Forms</option>
-        </select>
-      </label>
-      {kind === 'forms' && (
+      <Section title="Integration Type">
         <label className="block max-w-md space-y-2 text-sm">
-          Current page
+          Integration Types
           <select
             className={control}
-            value={page}
+            value={kind}
             onChange={(e) => {
-              setPage(e.target.value);
+              setKind(e.target.value as typeof kind);
               setNotice('');
               onReady?.(false);
             }}
           >
-            {PAGES.map((p) => (
-              <option key={p}>{p}</option>
-            ))}
+            <option value="">Select Facebook Type</option>
+            <option value="pages">Page wise Integration</option>
+            <option value="forms">Form wise Integration</option>
           </select>
         </label>
-      )}
+        {kind === 'forms' && (
+          <label className="block max-w-md space-y-2 text-sm">
+            Current page
+            <select
+              className={control}
+              value={page}
+              onChange={(e) => {
+                setPage(e.target.value);
+                setNotice('');
+                onReady?.(false);
+              }}
+            >
+              {PAGES.map((p) => (
+                <option key={p}>{p}</option>
+              ))}
+            </select>
+          </label>
+        )}
+      </Section>
       {notice && (
         <p
           role="status"
@@ -267,8 +288,7 @@ export default function FacebookPagesForms({ onReady }: { onReady?: (ready: bool
         </p>
       )}
       {kind && (
-        <>
-          <h3 className="text-sm">{kind === 'forms' ? 'Lead Gen Forms:' : 'Facebook Pages:'}</h3>
+        <Section title={kind === 'forms' ? 'Lead Gen Forms' : 'Facebook Pages'}>
           <div className="flex flex-wrap gap-4 text-[11px] text-slate-400">
             <span className="border-l-4 border-lime-500 pl-1">Live — receiving leads</span>
             <span className="border-l-4 border-blue-400 pl-1">Mapped — not live yet</span>
@@ -276,7 +296,7 @@ export default function FacebookPagesForms({ onReady }: { onReady?: (ready: bool
               Not started — fetch test lead first
             </span>
           </div>
-          <div className="overflow-x-auto rounded-lg border border-border">
+          <div className="overflow-x-auto rounded-lg border border-border/60">
             <table className="w-full min-w-[850px] text-left text-xs">
               <thead className="bg-slate-50">
                 <tr>
@@ -341,7 +361,7 @@ export default function FacebookPagesForms({ onReady }: { onReady?: (ready: bool
               </tbody>
             </table>
           </div>
-        </>
+        </Section>
       )}
       <Modal
         open={!!noLead}
@@ -685,27 +705,29 @@ export default function FacebookPagesForms({ onReady }: { onReady?: (ready: bool
                 </tbody>
               </table>
             </Section>
-            <Section title="Default Mapping">
-              <p className="text-xs leading-6">
-                Mark this {draft.kind === 'forms' ? 'form' : 'page'} as the default mapping. Only
-                one {draft.kind === 'forms' ? 'form per page' : 'page'} can be marked as default. It
-                will be used as a fallback for Facebook leads.
-              </p>
-              {draft.published && (
-                <p className="rounded border border-blue-300 bg-sky-50 p-3 text-xs">
-                  Default mapping cannot be changed while published. Unpublish first to update it.
+            {draft.kind === 'forms' && (
+              <Section title="Default Mapping">
+                <p className="text-xs leading-6">
+                  Mark this {draft.kind === 'forms' ? 'form' : 'page'} as the default mapping. Only
+                  one {draft.kind === 'forms' ? 'form per page' : 'page'} can be marked as default. It
+                  will be used as a fallback for Facebook leads.
                 </p>
-              )}
-              <label className="flex items-center gap-2 text-xs">
-                <input
-                  type="checkbox"
-                  disabled={draft.published}
-                  checked={draft.isDefault}
-                  onChange={(e) => update({ isDefault: e.target.checked })}
-                />
-                Set as Default Mapping
-              </label>
-            </Section>
+                {draft.published && (
+                  <p className="rounded border border-blue-300 bg-sky-50 p-3 text-xs">
+                    Default mapping cannot be changed while published. Unpublish first to update it.
+                  </p>
+                )}
+                <label className="flex items-center gap-2 text-xs">
+                  <input
+                    type="checkbox"
+                    disabled={draft.published}
+                    checked={draft.isDefault}
+                    onChange={(e) => update({ isDefault: e.target.checked })}
+                  />
+                  Set as Default Mapping
+                </label>
+              </Section>
+            )}
             <Section
               title="Static Mapping"
               action={

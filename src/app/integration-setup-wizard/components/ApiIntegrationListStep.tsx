@@ -1,5 +1,6 @@
 'use client';
 
+import OverlayPortal from '@/components/ui/OverlayPortal';
 import React, { useState } from 'react';
 import Modal from '@/components/ui/Modal';
 import {
@@ -218,7 +219,7 @@ export default function ApiIntegrationListStep({ integrations, setIntegrations, 
 
       {/* Add New Integration — side panel */}
       {panelOpen && (
-        <div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
+        <OverlayPortal><div className="fixed inset-0 z-50 flex justify-end" role="dialog" aria-modal="true">
           <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={closePanel} />
           <div className="relative w-full sm:max-w-lg bg-card h-full shadow-2xl border-l border-border flex flex-col fade-in">
             <div className="flex items-center justify-between px-6 py-4 border-b border-border bg-orange-50 dark:bg-orange-950/20 flex-shrink-0">
@@ -260,7 +261,7 @@ export default function ApiIntegrationListStep({ integrations, setIntegrations, 
               </button>
             </div>
           </div>
-        </div>
+        </div></OverlayPortal>
       )}
 
       {/* Delete confirmation */}

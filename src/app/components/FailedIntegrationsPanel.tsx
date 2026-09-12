@@ -1,5 +1,6 @@
 'use client';
 
+import OverlayPortal from '@/components/ui/OverlayPortal';
 import React, { useState } from 'react';
 import ConnectorIcon, { ConnectorType, getConnectorLabel } from '@/components/ui/ConnectorIcon';
 import StatusBadge from '@/components/ui/StatusBadge';
@@ -115,7 +116,7 @@ export default function FailedIntegrationsPanel({ onClose }: FailedIntegrationsP
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-start justify-end bg-black/40 backdrop-blur-sm" onClick={onClose}>
+    <OverlayPortal><div className="fixed inset-0 z-50 flex items-start justify-end bg-black/40 backdrop-blur-sm" onClick={onClose}>
       <div
         className="h-full w-full max-w-5xl bg-card shadow-2xl flex flex-col overflow-hidden"
         onClick={(e) => e.stopPropagation()}
@@ -425,6 +426,6 @@ export default function FailedIntegrationsPanel({ onClose }: FailedIntegrationsP
           )}
         </div>
       </div>
-    </div>
+    </div></OverlayPortal>
   );
 }

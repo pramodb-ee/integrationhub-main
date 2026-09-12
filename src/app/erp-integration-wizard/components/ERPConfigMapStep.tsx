@@ -1,5 +1,6 @@
 'use client';
 
+import { useSetupState } from '@/app/components/integrationSetupStore';
 import React, { useState, useCallback, useEffect, useRef, useMemo } from 'react';
 import {
   Terminal, Code2, GitBranch, Tag, Hash, Settings2,
@@ -255,37 +256,37 @@ export default function ERPConfigMapStep({ erpId, onConfigurationChange }: ERPCo
   const sourceFields = erp?.sourceFields || [];
 
   // Card 1: CURL
-  const [curl, setCurl] = useState(erp?.defaultCurl || '');
+  const [curl, setCurl] = useSetupState('erp-crm', 'ERPConfigMapStep.curl', erp?.defaultCurl || '');
   const [curlValidating, setCurlValidating] = useState(false);
   const [curlValid, setCurlValid] = useState<boolean | null>(null);
   const [curlCopied, setCurlCopied] = useState(false);
 
   // Card 2: Parsed
-  const [parsed, setParsed] = useState<ParsedRequest | null>(null);
+  const [parsed, setParsed] = useSetupState<ParsedRequest | null>('erp-crm', 'ERPConfigMapStep.parsed', null);
 
   // Card 3: Field Mapping
-  const [mappings, setMappings] = useState<FieldMapping[]>([]);
+  const [mappings, setMappings] = useSetupState<FieldMapping[]>('erp-crm', 'ERPConfigMapStep.mappings', []);
   const [statusFilter, setStatusFilter] = useState<'All' | MappingStatus>('All');
   const mappingFieldRefs = useRef<Record<string, HTMLSelectElement | null>>({});
   const [focusedMappingId, setFocusedMappingId] = useState<string | null>(null);
 
   // Card 4: Static Fields
-  const [staticFields, setStaticFields] = useState<StaticField[]>([]);
+  const [staticFields, setStaticFields] = useSetupState<StaticField[]>('erp-crm', 'ERPConfigMapStep.staticFields', []);
   const staticFieldRefs = useRef<Record<string, HTMLSelectElement | null>>({});
   const [focusedStaticFieldId, setFocusedStaticFieldId] = useState<string | null>(null);
 
   // Card 5: Format Mapping
-  const [formatMappings, setFormatMappings] = useState<FormatMapping[]>([]);
+  const [formatMappings, setFormatMappings] = useSetupState<FormatMapping[]>('erp-crm', 'ERPConfigMapStep.formatMappings', []);
 
   // Card 6: Default Values
-  const [customFields, setCustomFields] = useState<string[]>([]);
-  const [entityOptionsMap, setEntityOptionsMap] = useState<Record<string, string[]>>({ ...ENTITY_OPTIONS });
-  const [defaultEntity, setDefaultEntity] = useState<string>('Entity 1');
+  const [customFields, setCustomFields] = useSetupState<string[]>('erp-crm', 'ERPConfigMapStep.customFields', []);
+  const [entityOptionsMap, setEntityOptionsMap] = useSetupState<Record<string, string[]>>('erp-crm', 'ERPConfigMapStep.entityOptionsMap', { ...ENTITY_OPTIONS });
+  const [defaultEntity, setDefaultEntity] = useSetupState<string>('erp-crm', 'ERPConfigMapStep.defaultEntity', 'Entity 1');
   const [defaultDrawerOpen, setDefaultDrawerOpen] = useState(false);
   const [defaultSearch, setDefaultSearch] = useState('');
   const [defaultStatusFilter, setDefaultStatusFilter] = useState<'All' | 'Configured' | 'Not Configured'>('All');
   const [defaultUploadMessage, setDefaultUploadMessage] = useState<string | null>(null);
-  const [entityOptionValues, setEntityOptionValues] = useState<Record<string, Record<string, string>>>({
+  const [entityOptionValues, setEntityOptionValues] = useSetupState<Record<string, Record<string, string>>>('erp-crm', 'ERPConfigMapStep.entityOptionValues', {
     'Entity 1': {},
     'Entity 2': {},
     'Entity 3': {},

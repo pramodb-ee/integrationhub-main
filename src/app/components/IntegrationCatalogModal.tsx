@@ -1,5 +1,7 @@
 'use client';
 
+import { CATALOG_CATEGORIES } from './integrationCatalog';
+import OverlayPortal from '@/components/ui/OverlayPortal';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Modal from '@/components/ui/Modal';
@@ -16,75 +18,17 @@ interface CatalogEntry {
   customName?: string;
 }
 
-const CATALOG_CATEGORIES = [
-  {
-    id: 'lead-sources',
-    label: 'Lead Sources',
-    description: 'Capture leads from advertising and listing platforms',
-    connectors: [
-      { type: 'facebook' as ConnectorType,     description: 'Capture leads from Facebook Lead Ads and Pages',            popular: true  },
-      { type: 'google-forms' as ConnectorType, description: 'Sync responses from Google Forms to your CRM',               popular: true  },
-      { type: 'google-ads' as ConnectorType,   description: 'Pull lead data from Google Ads campaigns',                   popular: true  },
-      { type: 'justdial' as ConnectorType,     description: 'Import leads from JustDial business listings',               popular: true  },
-      { type: 'linkedin' as ConnectorType,     description: 'Capture leads via LinkedIn Lead Gen Forms (Pabbly)',          popular: true  },
-      { type: 'wordpress' as ConnectorType,    description: 'Connect WordPress contact and gravity forms'                              },
-    ],
-  },
-  {
-    id: 'developer-api',
-    label: 'Developer / API',
-    description: 'Code-level and API-based integrations',
-    connectors: [
-      { type: 'api' as ConnectorType,          description: 'Generic REST API connector for custom integrations',          popular: true  },
-      { type: 'js' as ConnectorType,           description: 'Embed JavaScript snippet to capture form submissions'                     },
-      { type: 'php' as ConnectorType,          description: 'Server-side PHP webhook integration'                                      },
-      { type: 'id-based' as ConnectorType,     description: 'Map incoming data by unique identifier fields'                            },
-    ],
-  },
-  {
-    id: 'telephony',
-    label: 'Telephony / IVR',
-    description: 'Inbound call tracking and IVR lead capture',
-    connectors: [
-      { type: 'tata' as ConnectorType,         description: 'TATA Tele Business Services voice and IVR integration',             popular: true, badge: 'Vendor' },
-      { type: 'exotel' as ConnectorType,       description: 'Exotel cloud telephony, call flows, and recordings',              popular: true, badge: 'Vendor' },
-      { type: 'knowlarity' as ConnectorType,   description: 'Knowlarity IVR, call routing, and agent workflows',                         badge: 'Vendor' },
-      { type: 'ozonetel' as ConnectorType,     description: 'Ozonetel CloudAgent IVR lead capture',                                    badge: 'Vendor' },
-      { type: 'myoperator' as ConnectorType,   description: 'MyOperator cloud telephony and IVR integration',                          badge: 'Vendor' },
-      { type: 'ivr-custom' as ConnectorType,   description: 'Custom / internal IVR — bring your own vendor',                          badge: 'Custom' },
-    ],
-  },
-  {
-    id: 'erp-crm',
-    label: 'ERP CRM',
-    description: 'Enterprise resource planning and CRM sync',
-    connectors: [
-      { type: 'erp-crm' as ConnectorType,      description: 'Bidirectional sync with ERP and CRM platforms'                           },
-    ],
-  },
-  {
-    id: 'automation',
-    label: 'Automation',
-    description: 'Workflow automation and app connectors',
-    connectors: [
-      { type: 'zapier' as ConnectorType,       description: 'Connect 5000+ apps through Zapier automation',               popular: true  },
-    ],
-  },
-];
 
 const CONNECTOR_TYPE_OPTIONS: { value: ConnectorType; label: string }[] = [
   { value: 'api', label: 'REST API' },
-  { value: 'js', label: 'JavaScript Embed' },
-  { value: 'php', label: 'PHP Webhook' },
   { value: 'facebook', label: 'Facebook Lead Ads' },
   { value: 'google-forms', label: 'Google Forms' },
   { value: 'google-ads', label: 'Google Ads' },
   { value: 'tata', label: 'TATA Telephony' },
   { value: 'exotel', label: 'Exotel' },
   { value: 'knowlarity', label: 'Knowlarity' },
-  { value: 'ozonetel', label: 'Ozonetel IVR' },
+  { value: 'mcube', label: 'Mcube IVR' },
   { value: 'myoperator', label: 'MyOperator' },
-  { value: 'zapier', label: 'Zapier' },
   { value: 'erp-crm', label: 'ERP / CRM' },
   { value: 'ivr-custom', label: 'Custom IVR' },
 ];
@@ -267,7 +211,11 @@ export default function IntegrationCatalogModal({ open, onClose, presentation = 
 
   const handleSelect = (type: ConnectorType) => {
     onClose();
-    if (type === 'erp-crm') {
+    if (type === 'pull-from-erp') {
+      router.push('/erp-data-pull');
+      return;
+    }
+    if (type === 'erp-crm' || type === 'pull-from-crm' || type === 'erp-two-way') {
       router.push('/erp-integration-wizard');
       return;
     }
@@ -364,7 +312,7 @@ export default function IntegrationCatalogModal({ open, onClose, presentation = 
                 <CheckCircle size={13} className="text-success" />
                 <p className="text-[11px] font-semibold text-success uppercase tracking-wide">Custom Connectors ({customConnectors.length})</p>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                 {customConnectors.map((connector, idx) => (
                   <CatalogCard
                     key={`custom-card-${idx}`}
@@ -386,7 +334,7 @@ export default function IntegrationCatalogModal({ open, onClose, presentation = 
                     <span className="text-[10px] text-muted-foreground bg-muted px-1.5 py-0.5 rounded">{cat.connectors.length}</span>
                     <span className="text-[11px] text-muted-foreground">— {cat.description}</span>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
                     {cat.connectors.map((connector) => (
                       <CatalogCard
                         key={`cat-card-${connector.type}`}
@@ -400,7 +348,7 @@ export default function IntegrationCatalogModal({ open, onClose, presentation = 
             </div>
           ) : (
             <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2.5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                 {filtered.filter((c) => !c.isCustom).map((connector, idx) => (
                   <CatalogCard key={`flat-card-${connector.type}-${idx}`} connector={connector} onSelect={handleSelect} />
                 ))}
@@ -439,14 +387,14 @@ export default function IntegrationCatalogModal({ open, onClose, presentation = 
       : `Choose from ${totalCount} connectors across categories`;
 
     return (
-      <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="integration-catalog-title">
+      <OverlayPortal><div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="integration-catalog-title">
         <button
           type="button"
           aria-label="Close integration panel"
           onClick={closeCatalog}
           className="absolute inset-0 h-full w-full bg-black/40 backdrop-blur-[1px]"
         />
-        <aside className="absolute inset-y-0 right-0 flex w-full flex-col border-l border-border bg-card shadow-2xl md:w-[50vw]">
+        <aside className="absolute inset-y-0 right-0 flex w-full flex-col border-l border-border bg-card shadow-2xl md:w-[38vw] md:min-w-[420px] md:max-w-[640px]">
           <div className="flex min-h-[76px] flex-shrink-0 items-start justify-between border-b border-border bg-card px-5 py-4 sm:px-6">
             <div>
               <h2 id="integration-catalog-title" className="text-[17px] font-semibold text-foreground">{title}</h2>
@@ -463,7 +411,7 @@ export default function IntegrationCatalogModal({ open, onClose, presentation = 
           </div>
           <div ref={drawerBodyRef} className="min-h-0 flex-1 overflow-y-auto p-5 sm:p-6">{catalogContent}</div>
         </aside>
-      </div>
+      </div></OverlayPortal>
     );
   }
 
@@ -521,12 +469,6 @@ function CatalogCard({
           {connector.description}
         </p>
       </div>
-      {isTelephony && (
-        <div className={`flex items-center gap-1 text-[10px] font-medium ${isConnected ? 'text-success' : 'text-muted-foreground'}`}>
-          <span className="text-[13px] leading-none">{isConnected ? '●' : '○'}</span>
-          {isConnected ? 'Connected' : 'Not Connected'}
-        </div>
-      )}
       <div className="flex items-center gap-1 text-[11px] text-primary font-medium opacity-0 group-hover:opacity-100 transition-opacity">
         <Zap size={10} />
         {isTelephony && isConnected ? 'Configure' : 'Connect'}
