@@ -2,7 +2,7 @@
 
 import { useSetupState } from '@/app/components/integrationSetupStore';
 import React, { useState } from 'react';
-import { AlertTriangle, CheckCircle2, Info, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { AlertTriangle, CheckCircle2, Info, Loader2, Plus, RefreshCw, Trash2, XCircle } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
 import { addActivatedIntegration } from '@/app/components/activatedIntegrationsStore';
 import type { Integration } from '@/app/components/IntegrationTable';
@@ -63,8 +63,8 @@ const TARGETS = [
 ];
 const defaults = (): Mapping[] =>
   Object.keys(SAMPLE).map((source, i) => ({ source, target: TARGETS[i] }));
-const seed = (): Entry[] =>
-  PAGES.flatMap((page, p) => [
+const seed = (pages: string[]): Entry[] =>
+  pages.flatMap((page, p) => [
     {
       id: `page-${p}`,
       name: page,
@@ -127,10 +127,11 @@ function Section({
   );
 }
 
-export default function FacebookPagesForms({ onReady }: { onReady?: (ready: boolean) => void }) {
-  const [entries, setEntries] = useSetupState<Entry[]>('facebook', 'FacebookPagesForms.entries', seed);
-  const [kind, setKind] = useSetupState<'forms' | 'pages' | ''>('facebook', 'FacebookPagesForms.kind', '');
-  const [page, setPage] = useSetupState('facebook', 'FacebookPagesForms.page', PAGES[0]);
+export default function FacebookPagesForms({ accountId = 'default', accountName = 'Facebook Account', pages = PAGES, onReady }: { accountId?: string; accountName?: string; pages?: string[]; onReady?: (ready: boolean) => void }) {
+  const stateKey = `FacebookPagesForms.${accountId}`;
+  const [entries, setEntries] = useSetupState<Entry[]>('facebook', `${stateKey}.entries`, () => seed(pages));
+  const [kind, setKind] = useSetupState<'forms' | 'pages' | ''>('facebook', `${stateKey}.kind`, '');
+  const [page, setPage] = useSetupState('facebook', `${stateKey}.page`, pages[0]);
   const [warning, setWarning] = useState<Entry | null>(null);
   const [draft, setDraft] = useState<Entry | null>(null);
   const [notice, setNotice] = useState('');
@@ -138,23 +139,21 @@ export default function FacebookPagesForms({ onReady }: { onReady?: (ready: bool
   const [leadEntry, setLeadEntry] = useState<Entry | null>(null);
   const [leads, setLeads] = useState<Record<string, FetchedLead>>({});
   const [demoResult, setDemoResult] = useState('empty');
+  const [loadDetails, setLoadDetails] = useState<{ entry: Entry; status: 'loading' | 'success' | 'failed' } | null>(null);
   const fetchLead = (entry: Entry) => {
     setNotice('');
-    if (demoResult === 'empty') {
-      setNoLead(entry);
-      return;
-    }
-    const lead = {
-      id: `demo-${crypto.randomUUID()}`,
-      receivedAt: new Date().toLocaleString(),
-      fields: { ...SAMPLE },
-      added: false,
-    };
-    setLeads((all) => ({ ...all, [entry.id]: lead }));
-    setEntries((all) => all.map((e) => (e.id === entry.id ? { ...e, fetched: true } : e)));
-    setNotice(`${entry.name}: Lead Fetch Successful (demo).`);
-    // A successful fetch takes the user straight into Map Fields for this page/form.
-    open(entry);
+    setLoadDetails({ entry, status: 'loading' });
+    setTimeout(() => {
+      if (demoResult === 'empty') {
+        setLoadDetails({ entry, status: 'failed' });
+        return;
+      }
+      const lead = { id: `lead-${crypto.randomUUID()}`, receivedAt: new Date().toLocaleString(), fields: { ...SAMPLE }, added: false };
+      setLeads((all) => ({ ...all, [entry.id]: lead }));
+      setEntries((all) => all.map((e) => (e.id === entry.id ? { ...e, fetched: true } : e)));
+      setNotice(`${entry.name}: Lead Fetch Successful.`);
+      setLoadDetails({ entry: { ...entry, fetched: true }, status: 'success' });
+    }, 900);
   };
   const open = (entry: Entry) => setDraft(structuredClone(entry));
   const update = (patch: Partial<Entry>) => setDraft((d) => (d ? { ...d, ...patch } : d));
@@ -243,6 +242,7 @@ export default function FacebookPagesForms({ onReady }: { onReady?: (ready: bool
         </select>
       </details>
       <Section title="Integration Type">
+        <p className="text-[11px] text-muted-foreground">Account: <span className="font-semibold text-foreground">{accountName}</span></p>
         <label className="block max-w-md space-y-2 text-sm">
           Integration Types
           <select
@@ -363,6 +363,18 @@ export default function FacebookPagesForms({ onReady }: { onReady?: (ready: bool
           </div>
         </Section>
       )}
+      <Modal
+        open={!!loadDetails}
+        onClose={() => setLoadDetails(null)}
+        title="Load Details"
+        subtitle={loadDetails ? `${accountName} · ${loadDetails.entry.name}` : ''}
+        size="lg"
+        footer={<div className="flex justify-end gap-2"><button className={btn} onClick={() => setLoadDetails(null)}>Close</button>{loadDetails?.status === 'failed' && <a className={orange} href={TESTING_TOOL_URL} target="_blank" rel="noopener noreferrer">Open Lead Ads Testing Tool</a>}{loadDetails?.status === 'success' && <button className={orange} onClick={() => { open(loadDetails.entry); setLoadDetails(null); }}>Map Fields</button>}</div>}
+      >
+        {loadDetails?.status === 'loading' && <div className="flex flex-col items-center gap-3 py-10 text-center"><Loader2 size={28} className="animate-spin text-primary" /><p className="text-sm font-semibold text-foreground">Loading test lead details…</p><p className="text-xs text-muted-foreground">Fetching the latest lead for this Facebook {loadDetails.entry.kind === 'forms' ? 'form' : 'page'}.</p></div>}
+        {loadDetails?.status === 'success' && leads[loadDetails.entry.id] && <div className="space-y-4"><p className="flex items-center gap-2 rounded-lg border border-success-border bg-success-bg p-3 text-sm font-semibold text-success"><CheckCircle2 size={18} />Lead Fetch Successful</p><div className="overflow-x-auto rounded-lg border border-border"><table className="w-full text-left text-xs"><thead className="bg-muted"><tr><th className="p-3">Fetched Field</th><th className="p-3">Value</th></tr></thead><tbody>{Object.entries(leads[loadDetails.entry.id].fields).map(([field, value]) => <tr key={field} className="border-t border-border"><td className="p-3 font-medium text-foreground">{field}</td><td className="p-3 text-muted-foreground">{value}</td></tr>)}</tbody></table></div><p className="text-xs text-muted-foreground">Lead details are ready. Continue to map the fetched fields to CRM fields.</p></div>}
+        {loadDetails?.status === 'failed' && <div className="space-y-4"><p className="flex items-center gap-2 rounded-lg border border-danger-border bg-danger-bg p-3 text-sm font-semibold text-danger"><XCircle size={18} />Failed to load a test lead</p><p className="text-xs leading-5 text-muted-foreground">No test lead was found for <strong className="text-foreground">{loadDetails.entry.name}</strong>. Submit a test lead in Meta&apos;s Lead Ads Testing Tool and try again.</p></div>}
+      </Modal>
       <Modal
         open={!!noLead}
         onClose={() => setNoLead(null)}

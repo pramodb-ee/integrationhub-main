@@ -3,13 +3,11 @@ import { imageHosts } from './image-hosts.config.mjs';
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   productionBrowserSourceMaps: true,
-  distDir: process.env.DIST_DIR || '.next',
   devIndicators: {
     position: 'bottom-right',
   },
-  typescript: {
-    ignoreBuildErrors: true,
-  },
+  // Keep deployment builds focused on compilation and type safety while the
+  // existing repository-wide formatting backlog is handled separately.
   eslint: {
     ignoreDuringBuilds: true,
   },

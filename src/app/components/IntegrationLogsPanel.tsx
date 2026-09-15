@@ -5,6 +5,7 @@ import { X, RefreshCw, Download } from 'lucide-react';
 import { getConnectorLabel } from '@/components/ui/ConnectorIcon';
 import type { Integration } from './IntegrationTable';
 import { readIntegrationLogs, IntegrationLog } from './integrationSetupStore';
+import TataCallLogsPanel from '@/app/integration-setup-wizard/components/TataCallLogsPanel';
 export default function IntegrationLogsPanel({
   integration,
   onClose,
@@ -21,6 +22,9 @@ export default function IntegrationLogsPanel({
     setStatus('all');
   }, [integration?.id]);
   if (!integration) return null;
+  if (integration.type === 'tata') {
+    return <TataCallLogsPanel open={true} onClose={onClose} user={null} />;
+  }
   const filtered = logs.filter(
     (l) =>
       (status === 'all' || l.status === status) &&

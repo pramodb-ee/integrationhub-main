@@ -2,6 +2,7 @@
 
 import React from 'react';
 import { usePathname } from 'next/navigation';
+import Link from 'next/link';
 import { Menu, Bell, HelpCircle, ChevronRight } from 'lucide-react';
 
 const routeLabels: Record<string, { label: string; parent?: string }> = {
@@ -31,15 +32,15 @@ export default function Topbar({ onMobileMenuToggle }: TopbarProps) {
 
       {/* Breadcrumb */}
       <div className="flex items-center gap-1.5 text-sm min-w-0">
-        <span className="text-muted-foreground text-[12px] font-medium hidden sm:block">IntegrationHub</span>
+        <Link href="/" className="text-muted-foreground text-[12px] font-medium hidden sm:block hover:text-primary transition-colors">IntegrationHub</Link>
         {routeInfo.parent && (
           <>
             <ChevronRight size={12} className="text-muted-foreground hidden sm:block" />
-            <span className="text-muted-foreground text-[12px] hidden sm:block">{routeInfo.parent}</span>
+            <Link href="/" className="text-muted-foreground text-[12px] hidden sm:block hover:text-primary transition-colors">{routeInfo.parent}</Link>
           </>
         )}
         <ChevronRight size={12} className="text-muted-foreground hidden sm:block" />
-        <span className="font-semibold text-[13px] text-foreground truncate">{routeInfo.label}</span>
+        <Link href={pathname} className="font-semibold text-[13px] text-foreground truncate hover:text-primary transition-colors">{routeInfo.label}</Link>
       </div>
 
       <div className="flex-1" />

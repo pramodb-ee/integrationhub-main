@@ -10,7 +10,7 @@ export const CATALOG_CATEGORIES = [
       { type: 'google-forms' as ConnectorType, description: 'Sync responses from Google Forms to your CRM',               popular: true  },
       { type: 'google-ads' as ConnectorType,   description: 'Pull lead data from Google Ads campaigns',                   popular: true  },
       { type: 'justdial' as ConnectorType,     description: 'Import leads from JustDial business listings',               popular: true  },
-      { type: 'linkedin' as ConnectorType,     description: 'Capture leads via LinkedIn Lead Gen Forms (Pabbly)',          popular: true  },
+      { type: 'linkedin' as ConnectorType,     description: 'Capture leads via LinkedIn Lead Gen Forms',                   popular: true  },
 
 
     ],

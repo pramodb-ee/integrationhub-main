@@ -136,7 +136,7 @@ export default function TataCallLogsPanel({ open, onClose, user }: TataCallLogsP
               <Search size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
                 type="text"
-                placeholder="Search Call ID or Agent"
+                placeholder={user ? 'Search Call ID or Type' : 'Search Call ID or Agent'}
                 value={search}
                 onChange={(event) => setSearch(event.target.value)}
                 className="h-9 pl-8 pr-3 w-56 text-[12px] bg-card rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
@@ -162,20 +162,20 @@ export default function TataCallLogsPanel({ open, onClose, user }: TataCallLogsP
           </div>
 
           <div className="card-base overflow-x-auto rounded-xl">
-            <div className="min-w-[720px]">
-              <div className="grid grid-cols-[1.4fr_0.9fr_0.8fr_1.3fr_1fr_1fr] gap-3 px-4 py-2.5 bg-muted/50 border-b border-border">
+            <div className={user ? 'min-w-[620px]' : 'min-w-[720px]'}>
+              <div className={`grid ${user ? 'grid-cols-[1.4fr_0.9fr_0.8fr_1.3fr_1fr]' : 'grid-cols-[1.4fr_0.9fr_0.8fr_1.3fr_1fr_1fr]'} gap-3 px-4 py-2.5 bg-muted/50 border-b border-border`}>
                 <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Call ID</span>
                 <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Type</span>
                 <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Status</span>
                 <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Time</span>
                 <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Duration</span>
-                <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Agent</span>
+                {!user && <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Agent</span>}
               </div>
               <div className="divide-y divide-border">
                 {filtered.map((row) => {
                   const SolutionIcon = row.solution === 'Clicktocall' ? PhoneCall : row.connected ? PhoneIncoming : PhoneMissed;
                   return (
-                    <div key={row.id} className="grid grid-cols-[1.4fr_0.9fr_0.8fr_1.3fr_1fr_1fr] gap-3 px-4 py-3 items-center hover:bg-muted/30 transition-colors">
+                    <div key={row.id} className={`grid ${user ? 'grid-cols-[1.4fr_0.9fr_0.8fr_1.3fr_1fr]' : 'grid-cols-[1.4fr_0.9fr_0.8fr_1.3fr_1fr_1fr]'} gap-3 px-4 py-3 items-center hover:bg-muted/30 transition-colors`}>
                       <div className="flex items-center gap-1.5 min-w-0">
                         <span className="text-[11px] font-mono font-semibold text-foreground truncate" title={row.id}>{row.id}</span>
                         <button type="button" onClick={() => { navigator.clipboard?.writeText(row.id); toast.success('Call ID copied'); }} className="text-muted-foreground hover:text-foreground flex-shrink-0" title="Copy Call ID">
@@ -191,7 +191,7 @@ export default function TataCallLogsPanel({ open, onClose, user }: TataCallLogsP
                       </span>
                       <span className="text-[11px] text-muted-foreground font-mono truncate">{row.time}</span>
                       <span className="text-[12px] text-foreground font-tabular">{row.duration}</span>
-                      <span className="text-[11px] text-muted-foreground truncate">{row.agent || '—'}</span>
+                      {!user && <span className="text-[11px] text-muted-foreground truncate">{row.agent || '—'}</span>}
                     </div>
                   );
                 })}

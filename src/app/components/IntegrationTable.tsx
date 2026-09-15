@@ -57,7 +57,7 @@ export function buildMonitorHref(integration: Integration): string {
   return `/integration-monitoring?${params.toString()}`;
 }
 
-type ColumnId = 'name' | 'type' | 'status' | 'lastSync' | 'events24h' | 'successRate' | 'latencyMs' | 'owner' | 'errorCount';
+type ColumnId = 'name' | 'type' | 'status' | 'created' | 'lastSync' | 'events24h' | 'successRate' | 'latencyMs' | 'owner' | 'errorCount';
 
 interface ColumnDef {
   id: ColumnId;
@@ -69,6 +69,7 @@ const ALL_COLUMNS: ColumnDef[] = [
   { id: 'name',        label: 'Integration Name', sortKey: 'name' },
   { id: 'type',        label: 'Connector',         sortKey: 'type' },
   { id: 'status',      label: 'Status',            sortKey: 'status' },
+  { id: 'created',     label: 'Created On',        sortKey: 'created' },
   { id: 'lastSync',    label: 'Last Sync',         sortKey: 'lastSync' },
   { id: 'events24h',   label: 'Events (24h)',      sortKey: 'events24h' },
   { id: 'successRate', label: 'Success Rate',      sortKey: 'successRate' },
@@ -77,7 +78,7 @@ const ALL_COLUMNS: ColumnDef[] = [
   { id: 'errorCount',  label: 'Error Count',       sortKey: 'errorCount' },
 ];
 
-const DEFAULT_VISIBLE: ColumnId[] = ['name', 'type', 'status', 'lastSync', 'events24h', 'successRate', 'latencyMs', 'owner'];
+const DEFAULT_VISIBLE: ColumnId[] = ['name', 'type', 'status', 'created', 'lastSync', 'events24h', 'successRate', 'latencyMs', 'owner'];
 
 export default function IntegrationTable({ integrations, loading, onRefresh, onEdit, onViewDetails, onViewLogs, onDelete, onOpenTata }: IntegrationTableProps) {
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -248,6 +249,12 @@ export default function IntegrationTable({ integrations, loading, onRefresh, onE
         return (
           <td key={`cell-${integration.id}-status`} className="px-3 py-3">
             <StatusBadge status={effectiveStatus} size="sm" />
+          </td>
+        );
+      case 'created':
+        return (
+          <td key={`cell-${integration.id}-created`} className="px-3 py-3 text-[12px] text-muted-foreground font-tabular whitespace-nowrap">
+            {integration.created}
           </td>
         );
       case 'lastSync':
@@ -441,7 +448,7 @@ export default function IntegrationTable({ integrations, loading, onRefresh, onE
 
       {/* Table */}
       <div className="overflow-x-auto">
-        <table className="w-full text-[13px]" style={{ minWidth: '800px' }}>
+        <table className="w-full text-[13px]" style={{ minWidth: '920px' }}>
           <thead>
             <tr className="border-b border-border bg-muted/40">
               <th className="w-10 px-4 py-2.5 text-left">

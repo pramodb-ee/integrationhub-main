@@ -1,15 +1,7 @@
 import React from 'react';
 import type { Metadata, Viewport } from 'next';
-import { DM_Sans } from 'next/font/google';
 import '../styles/tailwind.css';
 import { Toaster } from 'sonner';
-
-const dmSans = DM_Sans({
-  subsets: ['latin'],
-  weight: ['100', '200', '300', '400', '500', '600', '700', '800', '900'],
-  variable: '--font-dm-sans',
-  display: 'swap',
-});
 
 export const viewport: Viewport = {
   width: 'device-width',
@@ -28,8 +20,8 @@ export default function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <html lang="en" className={dmSans.variable}>
-      <body className={dmSans.className}>
+    <html lang="en">
+      <body>
         {children}
         <Toaster position="top-right" richColors closeButton offset={{ top: 64, right: 20 }} />
 

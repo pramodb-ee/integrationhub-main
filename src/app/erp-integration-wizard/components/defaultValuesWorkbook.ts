@@ -9,7 +9,7 @@ const REQUIRED_HEADERS = ['Field Name', 'Default Value'] as const;
 
 export function downloadDefaultValuesTemplate() {
   const worksheet = XLSX.utils.aoa_to_sheet([
-    REQUIRED_HEADERS,
+    [...REQUIRED_HEADERS],
     ['Example Field', 'Example Value'],
   ]);
   const workbook = XLSX.utils.book_new();

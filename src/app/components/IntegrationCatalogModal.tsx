@@ -196,6 +196,9 @@ export default function IntegrationCatalogModal({ open, onClose, presentation = 
   const [showAddForm, setShowAddForm] = useState(false);
   const [customConnectors, setCustomConnectors] = useState<CatalogEntry[]>([]);
   const drawerBodyRef = useRef<HTMLDivElement>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [drawerMounted, setDrawerMounted] = useState(open);
+  const [drawerVisible, setDrawerVisible] = useState(false);
 
   const allConnectors = [...ALL_CONNECTORS, ...customConnectors];
 
@@ -210,16 +213,13 @@ export default function IntegrationCatalogModal({ open, onClose, presentation = 
   });
 
   const handleSelect = (type: ConnectorType) => {
-    onClose();
-    if (type === 'pull-from-erp') {
-      router.push('/erp-data-pull');
-      return;
-    }
-    if (type === 'erp-crm' || type === 'pull-from-crm' || type === 'erp-two-way') {
-      router.push('/erp-integration-wizard');
-      return;
-    }
-    router.push(`/integration-setup-wizard?type=${type}`);
+    closeCatalog();
+    const destination = type === 'pull-from-erp'
+      ? '/erp-data-pull'
+      : type === 'erp-crm' || type === 'pull-from-crm' || type === 'erp-two-way'
+        ? '/erp-integration-wizard'
+        : `/integration-setup-wizard?type=${type}`;
+    setTimeout(() => router.push(destination), 300);
   };
 
   const handleSaveConnector = (connector: CatalogEntry) => {
@@ -230,12 +230,35 @@ export default function IntegrationCatalogModal({ open, onClose, presentation = 
   const totalCount = allConnectors.length;
   const categories = [...CATALOG_CATEGORIES.map((c) => c.label), ...(customConnectors.length > 0 ? ['Custom'] : [])];
   const closeCatalog = useCallback(() => {
-    setShowAddForm(false);
-    onClose();
-  }, [onClose]);
+    if (presentation !== 'drawer') {
+      setShowAddForm(false);
+      onClose();
+      return;
+    }
+    setDrawerVisible(false);
+    if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+    closeTimerRef.current = setTimeout(() => {
+      setDrawerMounted(false);
+      setShowAddForm(false);
+      onClose();
+    }, 300);
+  }, [onClose, presentation]);
 
   useEffect(() => {
-    if (!open || presentation !== 'drawer') return;
+    if (presentation !== 'drawer') return;
+    if (open) {
+      if (closeTimerRef.current) clearTimeout(closeTimerRef.current);
+      setDrawerMounted(true);
+      const frame = requestAnimationFrame(() => setDrawerVisible(true));
+      return () => cancelAnimationFrame(frame);
+    }
+    setDrawerVisible(false);
+    const timer = setTimeout(() => setDrawerMounted(false), 300);
+    return () => clearTimeout(timer);
+  }, [open, presentation]);
+
+  useEffect(() => {
+    if (!drawerMounted || presentation !== 'drawer') return;
     const handleEscape = (event: KeyboardEvent) => {
       if (event.key === 'Escape') closeCatalog();
     };
@@ -247,7 +270,7 @@ export default function IntegrationCatalogModal({ open, onClose, presentation = 
       document.body.style.overflow = previousOverflow;
       document.removeEventListener('keydown', handleEscape);
     };
-  }, [closeCatalog, open, presentation]);
+  }, [closeCatalog, drawerMounted, presentation]);
 
   const catalogContent = (
     <>
@@ -258,8 +281,8 @@ export default function IntegrationCatalogModal({ open, onClose, presentation = 
         />
       ) : (
         <>
-          {/* Search + Add Connector button row */}
-          <div className="flex items-center gap-2 mb-4">
+          {/* Connector search */}
+          <div className="mb-4">
             <div className="relative flex-1">
               <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
               <input
@@ -270,13 +293,6 @@ export default function IntegrationCatalogModal({ open, onClose, presentation = 
                 className="w-full h-9 pl-8 pr-3 text-[13px] bg-muted rounded-md border border-border focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary transition-all"
               />
             </div>
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="flex items-center gap-1.5 h-9 px-3.5 text-[12px] font-semibold bg-primary text-white rounded-md hover:bg-primary/90 transition-all whitespace-nowrap shadow-sm"
-            >
-              <Plus size={14} />
-              Add Connector
-            </button>
           </div>
 
           {/* Category filter pills */}
@@ -361,26 +377,13 @@ export default function IntegrationCatalogModal({ open, onClose, presentation = 
             </>
           )}
 
-          {/* Bottom Add Connector CTA */}
-          <div className="mt-6 pt-4 border-t border-border flex items-center justify-between">
-            <p className="text-[12px] text-muted-foreground">
-              Don&apos;t see your connector? Add a custom one.
-            </p>
-            <button
-              onClick={() => setShowAddForm(true)}
-              className="flex items-center gap-1.5 h-8 px-3.5 text-[12px] font-semibold border border-primary text-primary rounded-md hover:bg-primary/5 transition-all"
-            >
-              <Plus size={13} />
-              Add Connector
-            </button>
-          </div>
         </>
       )}
     </>
   );
 
   if (presentation === 'drawer') {
-    if (!open) return null;
+    if (!drawerMounted) return null;
     const title = showAddForm ? 'Add New Connector' : 'Add New Integration';
     const subtitle = showAddForm
       ? 'Configure a custom connector with your credentials'
@@ -392,9 +395,9 @@ export default function IntegrationCatalogModal({ open, onClose, presentation = 
           type="button"
           aria-label="Close integration panel"
           onClick={closeCatalog}
-          className="absolute inset-0 h-full w-full bg-black/40 backdrop-blur-[1px]"
+          className={`absolute inset-0 h-full w-full bg-black/40 backdrop-blur-[1px] transition-opacity duration-300 ${drawerVisible ? 'opacity-100' : 'opacity-0'}`}
         />
-        <aside className="absolute inset-y-0 right-0 flex w-full flex-col border-l border-border bg-card shadow-2xl md:w-[38vw] md:min-w-[420px] md:max-w-[640px]">
+        <aside className={`absolute inset-y-0 right-0 flex w-full flex-col border-l border-border bg-card shadow-2xl transition-transform duration-300 ease-out md:w-[38vw] md:min-w-[420px] md:max-w-[640px] ${drawerVisible ? 'translate-x-0' : 'translate-x-full'}`}>
           <div className="flex min-h-[76px] flex-shrink-0 items-start justify-between border-b border-border bg-card px-5 py-4 sm:px-6">
             <div>
               <h2 id="integration-catalog-title" className="text-[17px] font-semibold text-foreground">{title}</h2>

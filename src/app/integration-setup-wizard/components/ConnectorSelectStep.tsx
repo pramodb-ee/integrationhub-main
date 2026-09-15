@@ -19,7 +19,7 @@ const CATEGORY_GROUPS: { label: string; connectors: ConnectorEntry[] }[] = [
       { type: 'google-forms', description: 'Sync responses from Google Forms to your CRM',              category: 'Lead Sources' },
       { type: 'google-ads',   description: 'Pull lead data from Google Ads campaigns',                  category: 'Lead Sources' },
       { type: 'justdial',     description: 'Import leads from JustDial business listings',              category: 'Lead Sources' },
-      { type: 'linkedin',     description: 'Capture leads via LinkedIn Lead Gen Forms via Pabbly',      category: 'Lead Sources' },
+      { type: 'linkedin',     description: 'Capture leads via LinkedIn Lead Gen Forms',                  category: 'Lead Sources' },
 
 
     ],

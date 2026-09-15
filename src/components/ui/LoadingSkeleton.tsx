@@ -2,10 +2,11 @@ import React from 'react';
 
 interface SkeletonProps {
   className?: string;
+  style?: React.CSSProperties;
 }
 
-export function Skeleton({ className = '' }: SkeletonProps) {
-  return <div className={`animate-pulse bg-muted rounded-md ${className}`} />;
+export function Skeleton({ className = '', style }: SkeletonProps) {
+  return <div className={`animate-pulse bg-muted rounded-md ${className}`} style={style} />;
 }
 
 export function TableSkeleton({ rows = 8, cols = 7 }: { rows?: number; cols?: number }) {
@@ -21,7 +22,7 @@ export function TableSkeleton({ rows = 8, cols = 7 }: { rows?: number; cols?: nu
             <Skeleton
               key={`skel-cell-${i + 1}-${j + 1}`}
               className="h-4 flex-1"
-              style={{ maxWidth: j === 0 ? '180px' : j === cols - 1 ? '80px' : undefined } as React.CSSProperties}
+              style={{ maxWidth: j === 0 ? '180px' : j === cols - 1 ? '80px' : undefined }}
             />
           ))}
         </div>

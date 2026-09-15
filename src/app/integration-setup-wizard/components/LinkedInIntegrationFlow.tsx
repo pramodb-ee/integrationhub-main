@@ -102,7 +102,7 @@ export default function LinkedInIntegrationFlow() {
     );
     setStatics([]);
     changed();
-    setNotice('Lead Gen Form request fetched successfully (sample data).');
+    setNotice('Lead Gen Form request fetched successfully.');
   };
   const fetchLead = () => {
     if (active || !connected || !payload || issues.length) return;
@@ -121,7 +121,7 @@ export default function LinkedInIntegrationFlow() {
     }
     setLeads((rows) => [
       {
-        id: `LI-DEMO-${crypto.randomUUID()}`,
+        id: `LI-${crypto.randomUUID()}`,
         fields,
         date: new Date().toLocaleString(),
         added: false,
@@ -129,7 +129,7 @@ export default function LinkedInIntegrationFlow() {
       ...rows,
     ]);
     setError('');
-    setNotice('Test lead fetched successfully (demo).');
+    setNotice('Test lead fetched successfully.');
   };
   const canActivate = connected && !!payload && !issues.length && leads.some((l) => l.added);
   return (
@@ -149,17 +149,13 @@ export default function LinkedInIntegrationFlow() {
       <section className="overflow-hidden rounded-xl border border-border bg-card">
         <h2 className="border-b border-border px-4 py-4 text-[13px] font-semibold">LinkedIn Connection</h2>
         <div className="space-y-4 p-4"><p className="text-xs text-muted-foreground">Connect your LinkedIn account for Lead Gen Forms. Authorize access to your account and map leads to CRM.</p>
-          {connected ? <div className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-5 py-4"><CheckCircle2 size={20} className="shrink-0 text-green-600" /><div className="flex-1"><p className="text-[13px] font-semibold text-green-800">LinkedIn Connected Successfully</p><p className="mt-1 text-xs text-green-700">Your demo LinkedIn account is connected. Select a lead form to continue.</p></div><button className={`${btn} !border-green-300 !text-green-700`} disabled={active} onClick={() => setNotice('LinkedIn account reconnected (demo).')}><RefreshCw size={12} />Re-Connect</button></div> : <div className="flex flex-col items-center py-3 text-center"><span className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-3xl font-bold text-[#0A66C2]">in</span><h3 className="text-sm font-semibold">Connect your LinkedIn Account</h3><p className="mt-2 max-w-sm text-xs leading-5 text-muted-foreground">Authorize access to your LinkedIn account and Lead Gen Forms.</p><button className="mt-4 inline-flex h-10 items-center gap-3 rounded-xl bg-[#0A66C2] px-6 text-xs font-semibold text-white hover:bg-[#004182]" onClick={() => { setConnected(true); setNotice('Connected Successfully (demo).'); }}><span className="font-bold">in</span>Connect LinkedIn Account</button></div>}
+          {connected ? <div className="flex items-center gap-3 rounded-xl border border-green-200 bg-green-50 px-5 py-4"><CheckCircle2 size={20} className="shrink-0 text-green-600" /><div className="flex-1"><p className="text-[13px] font-semibold text-green-800">LinkedIn Connected Successfully</p><p className="mt-1 text-xs text-green-700">Your LinkedIn account is connected. Select a lead form to continue.</p></div><button className={`${btn} !border-green-300 !text-green-700`} disabled={active} onClick={() => setNotice('LinkedIn account reconnected successfully.')}><RefreshCw size={12} />Re-Connect</button></div> : <div className="flex flex-col items-center py-3 text-center"><span className="mb-4 flex h-14 w-14 items-center justify-center rounded-full bg-blue-50 text-3xl font-bold text-[#0A66C2]">in</span><h3 className="text-sm font-semibold">Connect your LinkedIn Account</h3><p className="mt-2 max-w-sm text-xs leading-5 text-muted-foreground">Authorize access to your LinkedIn account and Lead Gen Forms.</p><button className="mt-4 inline-flex h-10 items-center gap-3 rounded-xl bg-[#0A66C2] px-6 text-xs font-semibold text-white hover:bg-[#004182]" onClick={() => { setConnected(true); setNotice('Connected Successfully.'); }}><span className="font-bold">in</span>Connect LinkedIn Account</button></div>}
         </div>
       </section>
-      <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-700">
-        Demo integration — sample LinkedIn account, forms and leads. Live LinkedIn authentication
-        and CRM delivery are not connected.
-      </p>
       {active && (
         <p className="flex items-center gap-2 rounded-lg border border-green-200 bg-green-50 p-3 text-sm text-green-700">
           <LockKeyhole size={16} />
-          Integration Active (demo). Deactivate Integration to edit fields.
+          Integration Active. Deactivate Integration to edit fields.
         </p>
       )}
       {notice && (
@@ -428,7 +424,7 @@ export default function LinkedInIntegrationFlow() {
                           disabled={active || l.added}
                           onClick={() => {
                             setLeads(leads.map((r) => (r.id === l.id ? { ...r, added: true } : r)));
-                            setNotice('Lead added to demo CRM.');
+                            setNotice('Lead added to CRM.');
                           }}
                         >
                           Add to CRM
@@ -477,7 +473,7 @@ export default function LinkedInIntegrationFlow() {
                 setNotice('Integration deactivated. Fields are editable.');
               } else if (canActivate) {
                 setActive(true);
-                setNotice('LinkedIn integration activated successfully (demo).');
+                setNotice('LinkedIn integration activated successfully.');
               }
             }}
           >

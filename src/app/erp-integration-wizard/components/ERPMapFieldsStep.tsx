@@ -17,6 +17,8 @@ interface FieldMapping {
 }
 
 const ERP_SOURCE_FIELDS: Record<ERPSystem, string[]> = {
+  'salesforce': ['Id', 'FirstName', 'LastName', 'Email', 'Phone', 'MobilePhone', 'Company', 'LeadSource', 'Status', 'OwnerId', 'CreatedDate'],
+  'hubspot': ['hs_object_id', 'firstname', 'lastname', 'email', 'phone', 'mobilephone', 'company', 'hs_lead_status', 'hubspot_owner_id', 'createdate'],
   'sap-s4hana': ['BusinessPartner', 'FirstName', 'LastName', 'EmailAddress', 'PhoneNumber', 'CompanyCode', 'SalesOrg', 'CustomerGroup', 'Country', 'Region', 'PostalCode', 'CreatedAt'],
   'oracle-netsuite': ['entityId', 'firstName', 'lastName', 'email', 'phone', 'company', 'subsidiary', 'salesRep', 'leadSource', 'status', 'dateCreated'],
   'ms-dynamics-365': ['contactid', 'firstname', 'lastname', 'emailaddress1', 'mobilephone', 'telephone1', 'accountid', 'ownerid', 'leadsourcecode', 'statecode', 'createdon'],

@@ -43,6 +43,14 @@ const MOCK_PAGES = [
   { id: 'page-003', name: 'Product Launch Page' },
 ];
 
+type FacebookAccount = { id: string; name: string; status: 'Connected'; pages: string[] };
+
+const FACEBOOK_ACCOUNTS: FacebookAccount[] = [
+  { id: 'fb-account-001', name: 'ExtraaEdge Business', status: 'Connected', pages: ['SKD University', 'My Business Page'] },
+  { id: 'fb-account-002', name: 'Admissions Campaigns', status: 'Connected', pages: ['Admissions India', 'Brand Awareness Page'] },
+  { id: 'fb-account-003', name: 'Regional Marketing', status: 'Connected', pages: ['Pune Campus', 'Product Launch Page'] },
+];
+
 const MOCK_LEAD_FORMS: LeadForm[] = [
   { id: 'lf-001', name: 'Contact Us Form',       status: 'Active',   formId: '987654321001', mappingStatus: 'Mapped' },
   { id: 'lf-002', name: 'Free Trial Signup',     status: 'Active',   formId: '987654321002', mappingStatus: 'Partial' },
@@ -203,6 +211,9 @@ function TestLeadVerifiedPanel() {
 export default function FacebookIntegrationFlow({ onTestLeadRetrieved }: FacebookIntegrationFlowProps) {
   const [connectionState, setConnectionState] = useSetupState<ConnectionState>('facebook', 'FacebookIntegrationFlow.connectionState', 'idle');
   const [selectedPageId, setSelectedPageId] = useSetupState<string>('facebook', 'FacebookIntegrationFlow.selectedPageId', '');
+  const [selectedAccountId, setSelectedAccountId] = useSetupState<string>('facebook', 'FacebookIntegrationFlow.selectedAccountId', FACEBOOK_ACCOUNTS[0].id);
+  const [connectedAccounts, setConnectedAccounts] = useState<FacebookAccount[]>(FACEBOOK_ACCOUNTS);
+  const [reconnectingAccountId, setReconnectingAccountId] = useState<string | null>(null);
   const [pageDropdownOpen, setPageDropdownOpen] = useState(false);
   const [fetchingLeadFor, setFetchingLeadFor] = useState<string | null>(null);
   const [testLeadResults, setTestLeadResults] = useState<Record<string, TestLeadResult | null>>({});
@@ -211,6 +222,22 @@ export default function FacebookIntegrationFlow({ onTestLeadRetrieved }: Faceboo
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   const selectedPage = MOCK_PAGES.find((p) => p.id === selectedPageId);
+  const selectedAccount = connectedAccounts.find((account) => account.id === selectedAccountId) ?? connectedAccounts[0];
+
+  const selectAccount = (accountId: string) => {
+    setSelectedAccountId(accountId);
+    setConnectionState('connected');
+    setTestLeadResults({});
+    onTestLeadRetrieved?.(false);
+  };
+
+  const reconnectAccount = (accountId: string) => {
+    setReconnectingAccountId(accountId);
+    setTimeout(() => {
+      setReconnectingAccountId(null);
+      selectAccount(accountId);
+    }, 900);
+  };
 
   // Notify parent whenever test lead results change
   useEffect(() => {
@@ -274,6 +301,11 @@ export default function FacebookIntegrationFlow({ onTestLeadRetrieved }: Faceboo
         popupRef.current.close();
       }
       setConnectionState('connected');
+      if (connectedAccounts.length === 0) {
+        const account: FacebookAccount = { id: `fb-account-${Date.now()}`, name: 'New Facebook Business Account', status: 'Connected', pages: ['My Business Page'] };
+        setConnectedAccounts([account]);
+        setSelectedAccountId(account.id);
+      }
     }, 2500);
   };
 
@@ -390,9 +422,32 @@ export default function FacebookIntegrationFlow({ onTestLeadRetrieved }: Faceboo
         </div>
       </div>
 
+      <div className="overflow-hidden rounded-xl border border-border bg-card">
+          <div className="border-b border-border px-4 py-3">
+            <h3 className="text-[13px] font-semibold text-foreground">Connected Facebook Accounts</h3>
+            <p className="mt-0.5 text-[11px] text-muted-foreground">Select an account to load its pages and lead forms.</p>
+          </div>
+          {connectedAccounts.length > 0 ? (
+            <div className="divide-y divide-border p-2">
+              {connectedAccounts.map((account) => {
+                const selected = account.id === selectedAccount?.id;
+                const reconnecting = reconnectingAccountId === account.id;
+                return <div key={account.id} role="button" tabIndex={0} onClick={() => selectAccount(account.id)} onKeyDown={(event) => { if (event.key === 'Enter' || event.key === ' ') selectAccount(account.id); }} className={`flex cursor-pointer items-center gap-3 rounded-lg border p-3 text-left transition-all ${selected ? 'border-[#1877F2] bg-blue-50 shadow-sm' : 'border-transparent hover:border-[#1877F2]/40 hover:bg-muted/30'}`}>
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#1877F2] text-sm font-bold text-white">f</span>
+                  <span className="min-w-0 flex-1"><span className="block truncate text-[12px] font-semibold text-foreground">{account.name}</span><span className="mt-0.5 flex items-center gap-1 text-[10px] text-success"><span className="h-1.5 w-1.5 rounded-full bg-success" />{reconnecting ? 'Reconnecting…' : account.status}</span></span>
+                  {selected && <CheckCircle2 size={15} className="shrink-0 text-[#1877F2]" />}
+                  <button type="button" disabled={reconnecting} onClick={(event) => { event.stopPropagation(); reconnectAccount(account.id); }} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border bg-card px-3 text-[11px] font-semibold text-muted-foreground transition-colors hover:border-[#1877F2]/40 hover:text-[#1877F2] disabled:opacity-50"><RefreshCw size={12} className={reconnecting ? 'animate-spin' : ''} />Reconnect</button>
+                </div>;
+              })}
+            </div>
+          ) : (
+            <div className="p-5 text-center"><p className="text-xs text-muted-foreground">No Facebook account is connected. Use Connect Facebook above to add an account.</p></div>
+          )}
+        </div>
+
       {/* ── Facebook Pages / Forms — available once connected ── */}
-      {connectionState === 'connected' && (
-        <FacebookPagesForms onReady={onTestLeadRetrieved} />
+      {connectionState === 'connected' && selectedAccount && (
+        <FacebookPagesForms key={selectedAccount.id} accountId={selectedAccount.id} accountName={selectedAccount.name} pages={[...selectedAccount.pages]} onReady={onTestLeadRetrieved} />
       )}
 
       {/* No test lead modal */}

@@ -13,6 +13,7 @@ import StatusBadge from '@/components/ui/StatusBadge';
 import ConnectorIcon, { ConnectorType, getConnectorLabel } from '@/components/ui/ConnectorIcon';
 import { Search, Filter, RefreshCw, Download, X, ChevronDown, AlertTriangle, CheckCircle, Activity } from 'lucide-react';
 import Icon from '@/components/ui/AppIcon';
+import TataMonitorStep from '@/app/integration-setup-wizard/components/TataMonitorStep';
 
 
 const CONNECTOR_TYPES: ConnectorType[] = [
@@ -46,6 +47,9 @@ export default function MonitoringContent() {
   const [activeTab, setActiveTab] = useState<'overview' | 'logs' | 'health' | 'alerts'>('overview');
 
   if (isRemovedConnector(searchParams.get('type'))) return <div className="card-base p-6"><p>This connector is no longer available.</p><Link href="/" className="mt-4 inline-block text-primary">Back to Integration Center</Link></div>;
+  if (isLocked && lockedType === 'tata') {
+    return <TataMonitorStep integrationName={lockedName ?? 'TATA Integration'} connectorType="tata" />;
+  }
 
   const stats = isLocked
     ? {
@@ -83,7 +87,7 @@ export default function MonitoringContent() {
       {/* Page header */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
-          <h1 className="text-[22px] font-semibold text-foreground tracking-tight">Integration Monitoring</h1>
+          <h1 className="text-[22px] font-semibold text-foreground tracking-tight">{isLocked ? `${lockedName} Monitoring` : 'Integration Monitoring'}</h1>
           <p className="text-[13px] text-muted-foreground mt-0.5">
             {isLocked
               ? `Logs, metrics, and activity for ${lockedName}`
@@ -166,11 +170,16 @@ export default function MonitoringContent() {
       {/* Tab content */}
       {activeTab === 'overview' && (
         <div className="space-y-4">
-          <HealthTimelineChart />
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2 gap-4">
-            <ErrorBreakdownChart />
-            <LatencyTrendChart />
-          </div>
+          {isLocked ? (
+            <div className="card-base overflow-hidden">
+              <div className="px-5 py-3 border-b border-border"><h3 className="text-[14px] font-semibold text-foreground">Integration Activity</h3><p className="text-[11px] text-muted-foreground">Current performance for {lockedName}</p></div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 divide-y sm:divide-y-0 sm:divide-x divide-border">
+                {[['Last Sync', lockedLastSync ?? '—'], ['Connector', lockedType ? getConnectorLabel(lockedType) : '—'], ['Successful Events', Math.max(0, (Number(lockedEvents24h) || 0) - (Number(lockedErrorCount) || 0)).toLocaleString()], ['Failed Events', String(Number(lockedErrorCount) || 0)]].map(([label, value]) => <div key={label} className="p-5"><p className="text-[11px] text-muted-foreground">{label}</p><p className="mt-1 text-[16px] font-semibold text-foreground font-tabular">{value}</p></div>)}
+              </div>
+            </div>
+          ) : (
+            <><HealthTimelineChart /><div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-2 2xl:grid-cols-2 gap-4"><ErrorBreakdownChart /><LatencyTrendChart /></div></>
+          )}
         </div>
       )}
 
@@ -243,6 +252,8 @@ export default function MonitoringContent() {
           <EventLogTable
             filters={{ status: statusFilter, connector: connectorFilter, search }}
             lockedIntegrationName={isLocked ? (lockedName ?? undefined) : undefined}
+            lockedConnectorType={isLocked ? (lockedType ?? undefined) : undefined}
+            lockedLatencyMs={isLocked ? (Number(lockedLatencyMs) || 0) : undefined}
           />
         </div>
       )}

@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import AppLogo from '@/components/ui/AppLogo';
-import { LayoutDashboard, Plug, Activity, ChevronLeft, ChevronRight, Bell, HelpCircle, LogOut, GitBranch } from 'lucide-react';
+import { LayoutDashboard, Activity, ChevronLeft, ChevronRight, Bell, HelpCircle, LogOut } from 'lucide-react';
 import Icon from '@/components/ui/AppIcon';
 
 
@@ -20,9 +20,8 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { id: 'nav-center', label: 'Integration Center', href: '/', icon: LayoutDashboard, group: 'MAIN' },
-  { id: 'nav-wizard', label: 'Setup Wizard', href: '/integration-setup-wizard', icon: Plug, group: 'MAIN' },
+  // Setup Wizard stays routable and can be restored here when it is ready for navigation.
   { id: 'nav-monitoring', label: 'Monitoring', href: '/integration-monitoring', icon: Activity, badge: 3, group: 'MAIN' },
-  { id: 'nav-pipelines', label: 'Pipelines', href: '#', icon: GitBranch, group: 'MAIN', disabled: true },
 ];
 
 const groups = ['MAIN'];

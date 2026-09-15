@@ -172,7 +172,7 @@ const ARCHITECTURE_CAPABILITIES: Record<string, { provider: string; capabilities
   'google-ads': { provider: 'Google Ads API',     capabilities: ['Lead Form Extensions', 'Campaign Tracking', 'Conversion Import'],       authType: 'OAuth 2.0',              webhookSupport: false, eventTypes: ['lead_form_submit', 'conversion'] },
   'google-forms':{ provider: 'Google Workspace', capabilities: ['Form Response Sync', 'Polling', 'Sheet Integration'],                    authType: 'Service Account',        webhookSupport: false, eventTypes: ['form_response'] },
   justdial:     { provider: 'JustDial Business',  capabilities: ['Lead Import', 'Webhook Push', 'Category Filter'],                       authType: 'API Key',                webhookSupport: true,  eventTypes: ['new_lead', 'lead_update'] },
-  linkedin:     { provider: 'LinkedIn + Pabbly',  capabilities: ['Lead Gen Forms', 'Pabbly Relay', 'Ad Account Sync'],                    authType: 'OAuth 2.0 via Pabbly',   webhookSupport: true,  eventTypes: ['lead_gen_form_response'] },
+  linkedin:     { provider: 'LinkedIn',           capabilities: ['Lead Gen Forms', 'Form Responses', 'Ad Account Sync'],                 authType: 'OAuth 2.0',              webhookSupport: true,  eventTypes: ['lead_gen_form_response'] },
 
 
   api:          { provider: 'Generic REST API',   capabilities: ['HTTP Push/Pull', 'Custom Headers', 'Auth Flexible'],                    authType: 'Bearer / API Key / Basic',webhookSupport: true,  eventTypes: ['http_post', 'http_get', 'webhook'] },
@@ -311,10 +311,8 @@ const connectorFields: Partial<Record<ConnectorType, FormField[]>> = {
     { name: 'timeoutMs',       label: 'Request Timeout (ms)',     type: 'number',   placeholder: '5000',                             required: true },
   ],
   linkedin: [
-    { name: 'pabblyWebhookUrl',  label: 'Pabbly Connect Webhook URL', type: 'url',  placeholder: 'https://connect.pabbly.com/workflow/sendwebhookdata/...', required: true, helper: 'Create a Pabbly workflow with LinkedIn Lead Gen trigger' },
     { name: 'linkedinAccountId', label: 'LinkedIn Ad Account ID',     type: 'text', placeholder: 'e.g. 503218495',                  required: true },
     { name: 'leadFormId',        label: 'Lead Gen Form ID',           type: 'text', placeholder: 'LinkedIn Lead Gen Form URN',       required: true },
-    { name: 'pabblyAuthToken',   label: 'Pabbly Auth Token',          type: 'password', placeholder: 'Pabbly workflow auth token',   required: false },
   ],
   justdial: [
     { name: 'justdialApiKey',  label: 'JustDial API Key',         type: 'password', placeholder: 'JustDial Business API key',        required: true,  helper: 'Obtain from JustDial Business Partner portal' },

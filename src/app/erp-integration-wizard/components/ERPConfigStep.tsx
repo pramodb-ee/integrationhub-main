@@ -5,6 +5,8 @@ import { Settings, CheckCircle, Loader2, AlertCircle } from 'lucide-react';
 import { ERPSystem } from './ERPSelectStep';
 
 const ERP_NAMES: Record<ERPSystem, string> = {
+  'salesforce': 'Salesforce',
+  'hubspot': 'HubSpot',
   'sap-s4hana': 'SAP S/4 HANA',
   'oracle-netsuite': 'Oracle NetSuite',
   'ms-dynamics-365': 'Microsoft Dynamics 365',
@@ -15,6 +17,8 @@ const ERP_NAMES: Record<ERPSystem, string> = {
 };
 
 const ERP_BASE_URL_PLACEHOLDERS: Record<ERPSystem, string> = {
+  'salesforce': 'https://your-domain.my.salesforce.com',
+  'hubspot': 'https://api.hubapi.com',
   'sap-s4hana': 'https://your-sap-instance.s4hana.ondemand.com',
   'oracle-netsuite': 'https://your-account-id.suitetalk.api.netsuite.com',
   'ms-dynamics-365': 'https://your-org.crm.dynamics.com',

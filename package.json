@@ -41,12 +41,15 @@
   "scripts": {
     "dev": "next dev -p 4028",
     "build": "next build",
-    "start": "next dev -p 4028",
+    "start": "next start",
     "lint": "next lint",
     "lint:fix": "next lint --fix",
     "format": "prettier --write \"src/**/*.{ts,tsx,css,md,json}\"",
-    "serve": "next start",
+    "serve": "next start -p 3000",
     "type-check": "tsc --noEmit"
+  },
+  "engines": {
+    "node": "20.x"
   },
   "dependencies": {
     "@dhiwise/component-tagger": "^1.0.16",
@@ -64,7 +67,6 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
-    "@netlify/plugin-nextjs": "^5.11.1",
     "@types/node": "^20",
     "@types/react": "19.0.3",
     "@types/react-dom": "19.0.3",

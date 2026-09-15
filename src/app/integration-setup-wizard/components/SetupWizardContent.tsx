@@ -16,7 +16,6 @@ import PublishStep from './PublishStep';
 import MonitorBootstrapStep from './MonitorBootstrapStep';
 import FacebookIntegrationFlow from './FacebookIntegrationFlow';
 import TelephonySummaryStep from './TelephonySummaryStep';
-import TataMonitorStep from './TataMonitorStep';
 import ApiIntegrationListStep, { ApiIntegration, SEED_INTEGRATIONS } from './ApiIntegrationListStep';
 import ApiTestRequestStep from './ApiTestRequestStep';
 import GoogleAdsIntegrationFlow from './GoogleAdsIntegrationFlow';
@@ -26,17 +25,19 @@ import LinkedInIntegrationFlow from './LinkedInIntegrationFlow';
 import ERPDataPull from '@/app/erp-data-pull/ERPDataPull';
 import { ConnectorType } from '@/components/ui/ConnectorIcon';
 import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
-import { addActivatedIntegration } from '@/app/components/activatedIntegrationsStore';
+import { addActivatedIntegration, getActivatedIntegrations, removeActivatedIntegration } from '@/app/components/activatedIntegrationsStore';
 import type { Integration } from '@/app/components/IntegrationTable';
 
 const STANDARD_LABELS = ['Connect', 'Validate', 'Field Mapping', 'Preview', 'Publish', 'Monitor'];
 const TELEPHONY_LABELS = ['Connect', 'Configure', 'Test', 'Summary', 'Activate', 'Monitor'];
 // Call Logs is no longer a numbered wizard step — it opens as a side panel from within Configure and Monitor.
-const TATA_LABELS = ['Configure', 'Monitor'];
+const TATA_LABELS = ['Configure'];
+const CONFIGURATION_ONLY_LABELS = ['Configuration'];
 // API replaces Select & Configure + Validate with API Configuration (a table of integrations) + Test Request.
 // API Configuration (step 0) isn't a numbered step — like TATA's connector-pick screen, the stepper only starts once you're inside a particular integration, at Test Request.
 const API_LABELS = ['Test Request', 'Field Mapping', 'Preview', 'Publish', 'Monitor'];
 const TELEPHONY_CONNECTORS: ConnectorType[] = ['tata', 'exotel', 'knowlarity', 'mcube', 'ozonetel', 'myoperator', 'ivr-custom'];
+const CONFIGURATION_ONLY_CONNECTORS: ConnectorType[] = ['exotel', 'knowlarity', 'mcube'];
 
 export default function SetupWizardContent() {
   const searchParams = useSearchParams();
@@ -53,6 +54,9 @@ export default function SetupWizardContent() {
   const [configData, setConfigData] = useState<Record<string, string>>({});
   const [webhookConfigured, setWebhookConfigured] = useState(false);
   const [tataTestCallSucceeded, setTataTestCallSucceeded] = useState(false);
+  const existingTataIntegration = useRef(getActivatedIntegrations().find((row) => row.type === 'tata'));
+  const [tataActive, setTataActive] = useState(Boolean(existingTataIntegration.current));
+  const tataIntegrationId = useRef(existingTataIntegration.current?.id ?? `int-tata-${Date.now()}`);
   const [apiTestRequestMapped, setApiTestRequestMapped] = useState(false);
   const [apiIntegrations, setApiIntegrations] = useState<ApiIntegration[]>(SEED_INTEGRATIONS);
   const [isNewApiIntegration, setIsNewApiIntegration] = useState(false);
@@ -72,16 +76,17 @@ export default function SetupWizardContent() {
   };
 
   const isTelephony = selectedConnector !== null && TELEPHONY_CONNECTORS.includes(selectedConnector);
-  const isTata = isTelephony;
+  const isTata = selectedConnector === 'tata';
+  const isConfigurationOnly = selectedConnector !== null && CONFIGURATION_ONLY_CONNECTORS.includes(selectedConnector);
   const isFacebook = selectedConnector === 'facebook';
   const isApi = selectedConnector === 'api';
   const isGoogleAds = selectedConnector === 'google-ads';
-  const labels = isTata ? TATA_LABELS : isTelephony ? TELEPHONY_LABELS : isApi ? API_LABELS : STANDARD_LABELS;
-  const isMonitorStep = isTata ? currentStep === 2 : isTelephony ? currentStep === 5 : isApi ? currentStep === 5 : currentStep === 6;
+  const labels = isTata ? TATA_LABELS : isConfigurationOnly ? CONFIGURATION_ONLY_LABELS : isTelephony ? TELEPHONY_LABELS : isApi ? API_LABELS : STANDARD_LABELS;
+  const isMonitorStep = isTata ? false : isTelephony ? currentStep === 5 : isApi ? currentStep === 5 : currentStep === 6;
   const isLastStep = isTata ? false : isTelephony ? currentStep === 4 : isApi ? currentStep === 4 : currentStep === 5;
   // For TATA the connector-pick screen (step 0) isn't a numbered step — the stepper only ever shows Configure / Monitor.
   // For API, the API Configuration list (step 0) isn't a numbered step either — the stepper starts at Test Request (step 1).
-  const displayStep = isTata || isApi ? Math.max(0, currentStep - 1) : currentStep;
+  const displayStep = isTata || isApi || isConfigurationOnly ? Math.max(0, currentStep - 1) : currentStep;
   const hideStepChrome = (isTata && currentStep === 0) || (isApi && currentStep === 0);
 
   useEffect(() => {
@@ -116,38 +121,42 @@ export default function SetupWizardContent() {
   const handleConfigSubmit = (data: Record<string, string>) => {
     setConfigData(data);
     setConfigSubmitted(true);
-    setCurrentStep(2);
+    if (!isTata && !isConfigurationOnly) setCurrentStep(2);
   };
 
   const handleTataOutboundTestCallSuccess = () => {
     setTataTestCallSucceeded(true);
-    if (!tataTestCallSucceeded && selectedConnector) {
-      const row: Integration = {
-        id: `int-${selectedConnector}-${Date.now()}`,
-        name: integrationName || `${selectedConnector} Integration`,
-        type: selectedConnector,
-        status: 'active',
-        lastSync: 'Just now',
-        events24h: 0,
-        successRate: 0,
-        latencyMs: 0,
-        owner: 'Pramod Bhujbal',
-        created: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        environment: 'production',
-        errorCount: 0,
-      };
-      addActivatedIntegration(row);
+  };
+
+  const toggleTataActivation = () => {
+    if (tataActive) {
+      removeActivatedIntegration(tataIntegrationId.current);
+      setTataActive(false);
+      return;
     }
+    if (!tataTestCallSucceeded || !selectedConnector) return;
+    const row: Integration = {
+      id: tataIntegrationId.current,
+      name: integrationName || 'TATA Integration',
+      type: 'tata',
+      status: 'active',
+      lastSync: 'Just now',
+      events24h: 0,
+      successRate: 100,
+      latencyMs: 0,
+      owner: 'Pramod Bhujbal',
+      created: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      environment: 'production',
+      errorCount: 0,
+    };
+    addActivatedIntegration(row);
+    setTataActive(true);
   };
 
   const renderStep = () => {
     if (isTelephony) {
       if (currentStep === 0) return <ConnectorSelectStep selected={selectedConnector} onSelect={(type) => { setSelectedConnector(type); setConfigSubmitted(false); }} />;
       if (currentStep === 1 && selectedConnector) return <DynamicConfigForm connectorType={selectedConnector} onSubmit={handleConfigSubmit} integrationName={integrationName} onNameChange={setIntegrationName} onOutboundTestCallSuccess={handleTataOutboundTestCallSuccess} />;
-      if (isTata && currentStep === 2) {
-        // Call Logs is reached from here via a side panel (per-user in User Management, or "View Call Logs" on this screen) — not a separate step.
-        return <TataMonitorStep integrationName={integrationName} connectorType={selectedConnector ?? 'tata'} onBack={() => setCurrentStep(1)} />;
-      }
       if (currentStep === 2 && selectedConnector) return <ConnectionTestStep connectorType={selectedConnector} integrationName={integrationName || `${selectedConnector} Integration`} onTestComplete={setTestPassed} />;
       if (currentStep === 3 && selectedConnector) return <TelephonySummaryStep connectorType={selectedConnector} integrationName={integrationName || `${selectedConnector} Integration`} config={configData} testPassed={testPassed} />;
       if (currentStep === 4 && selectedConnector) return <PublishStep connectorType={selectedConnector} integrationName={integrationName || `${selectedConnector} Integration`} onPublished={() => setCurrentStep(5)} webhookConfigured={webhookConfigured || Boolean(configData.webhookUrl)} onGoToPreview={() => setCurrentStep(1)} />;
@@ -192,7 +201,7 @@ export default function SetupWizardContent() {
   };
 
   const handleNext = () => {
-    if (canProceed() && currentStep < (isTata ? 2 : isTelephony ? 5 : isApi ? 5 : 6)) setCurrentStep((step) => step + 1);
+    if (canProceed() && currentStep < (isTata || isConfigurationOnly ? 1 : isTelephony ? 5 : isApi ? 5 : 6)) setCurrentStep((step) => step + 1);
   };
 
   if (isRemovedConnector(searchParams.get('type'))) return <div className="card-base p-6"><p>This connector is no longer available.</p><Link href="/" className="mt-4 inline-block text-primary">Back to Integration Center</Link></div>;
@@ -247,21 +256,21 @@ export default function SetupWizardContent() {
           )}
           {currentStep === 1 && isTata ? (
             <div className="flex items-center gap-3">
-              {!tataTestCallSucceeded && (
+              {!tataTestCallSucceeded && !tataActive && (
                 <span className="text-[11px] text-muted-foreground">Run a successful Test Call to continue</span>
               )}
               <button
-                onClick={() => document.getElementById('config-form-submit')?.click()}
-                disabled={!tataTestCallSucceeded}
-                title={!tataTestCallSucceeded ? 'Complete a successful Test Call for an outbound user before continuing' : undefined}
-                className="flex items-center gap-2 px-5 py-2 text-[13px] font-semibold bg-primary text-white rounded-lg hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={toggleTataActivation}
+                disabled={!tataActive && !tataTestCallSucceeded}
+                title={!tataActive && !tataTestCallSucceeded ? 'Complete a successful Test Call for an outbound user before continuing' : undefined}
+                className={`flex items-center gap-2 px-5 py-2 text-[13px] font-semibold rounded-lg disabled:opacity-50 disabled:cursor-not-allowed ${tataActive ? 'bg-card border border-danger text-danger hover:bg-danger-bg' : 'bg-primary text-white hover:bg-primary/90'}`}
               >
-                Next <ChevronRight size={14} />
+                {tataActive ? 'Deactivate' : 'Active Integration'}
               </button>
             </div>
           ) : currentStep === 1 && !isApi ? (
             <button onClick={() => document.getElementById('config-form-submit')?.click()} className="flex items-center gap-2 px-5 py-2 text-[13px] font-semibold bg-primary text-white rounded-lg hover:bg-primary/90">
-              <span>{isTelephony ? 'Save & Continue' : 'Save & Test'}</span><ChevronRight size={14} />
+              <span>{isConfigurationOnly ? 'Save Configuration' : isTelephony ? 'Save & Continue' : 'Save & Test'}</span>{!isConfigurationOnly && <ChevronRight size={14} />}
             </button>
           ) : isApi && currentStep <= 1 ? (
             // API configuration and test requests advance through their own actions.

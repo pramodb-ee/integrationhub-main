@@ -57,7 +57,7 @@ const CALL_FAILURE_REASONS = [
 type User = { name: string; mobile: string; email: string; extension: string; status: 'Active' | 'Inactive'; extra?: Record<string, string> };
 type ConfirmAction = { action: 'Delete' | 'Deactivate' | 'Activate'; index: number } | null;
 type Notice = { title: string; detail: string } | null;
-type TestCallResponse = { callId: string; to: string; agent: string; status: string; duration?: string; reason?: string; timestamp: string };
+type TestCallResponse = { callId: string; to: string; agent: string; status: string; duration?: string; reason?: string; timestamp: string; recordingUrl?: string };
 type TestCallResult = { index: number; outcome: 'success' | 'failed'; response: TestCallResponse } | null;
 
 const DEFAULT_OUTBOUND_USERS: User[] = [
@@ -218,7 +218,7 @@ export default function TataOutboundUserManagement({ onTestCallSuccess, connecto
       const timestamp = new Date().toLocaleString();
       if (succeeded) {
         const duration = `00:00:${String(Math.floor(Math.random() * 40 + 8)).padStart(2, '0')}`;
-        setTestResult({ index, outcome: 'success', response: { callId, to: user.mobile, agent: user.name, status: 'Connected', duration, timestamp } });
+        setTestResult({ index, outcome: 'success', response: { callId, to: user.mobile, agent: user.name, status: 'Connected', duration, timestamp, recordingUrl: '/recordings/ivr-test-call.wav' } });
         onTestCallSuccess?.();
       } else {
         const reason = CALL_FAILURE_REASONS[Math.floor(Math.random() * CALL_FAILURE_REASONS.length)];
@@ -616,6 +616,17 @@ export default function TataOutboundUserManagement({ onTestCallSuccess, connecto
               ))}
             </div>
           </div>
+          {testResult.outcome === 'success' && testResult.response.recordingUrl && (
+            <div className="rounded-lg border border-border overflow-hidden">
+              <div className="flex items-center justify-between bg-muted/50 px-3 py-2 border-b border-border">
+                <div><p className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Recording</p><p className="text-[11px] text-foreground mt-0.5">Test call recording · {testResult.response.duration}</p></div>
+                <Play size={14} className="text-primary" />
+              </div>
+              <div className="p-3">
+                <audio controls preload="metadata" className="w-full h-9" src={testResult.response.recordingUrl} aria-label="Test call recording">Your browser does not support audio playback.</audio>
+              </div>
+            </div>
+          )}
         </div>
       </Modal>
     )}

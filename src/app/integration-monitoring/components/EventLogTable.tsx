@@ -49,9 +49,11 @@ interface EventLogTableProps {
   loading?: boolean;
   filters: { status: string; connector: string; search: string };
   lockedIntegrationName?: string;
+  lockedConnectorType?: ConnectorType;
+  lockedLatencyMs?: number;
 }
 
-export default function EventLogTable({ loading, filters, lockedIntegrationName }: EventLogTableProps) {
+export default function EventLogTable({ loading, filters, lockedIntegrationName, lockedConnectorType, lockedLatencyMs = 0 }: EventLogTableProps) {
   const [sortKey, setSortKey] = useState<SortKey>('timestamp');
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc');
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -63,7 +65,23 @@ export default function EventLogTable({ loading, filters, lockedIntegrationName 
     else { setSortKey(key); setSortDir('desc'); }
   };
 
-  const filtered = MOCK_LOGS.filter((log) => {
+  const scopedLogs: EventLog[] = lockedIntegrationName && lockedConnectorType
+    ? Array.from({ length: 5 }, (_, index) => ({
+        id: `evt-${lockedConnectorType}-${String(index + 1).padStart(4, '0')}`,
+        timestamp: index === 0 ? 'Just now' : `${index * 7} min ago`,
+        integrationName: lockedIntegrationName,
+        connectorType: lockedConnectorType,
+        eventType: ['tata', 'exotel', 'knowlarity', 'mcube', 'ivr', 'ivr-custom'].includes(lockedConnectorType) ? (index % 2 ? 'call.connected' : 'call.completed') : 'lead.created',
+        status: 'success',
+        payloadSize: `${(1.2 + index * 0.3).toFixed(1)} KB`,
+        latencyMs: Math.max(1, lockedLatencyMs + index * 4),
+        retries: 0,
+        owner: 'Pramod Bhujbal',
+        environment: 'production',
+      }))
+    : MOCK_LOGS;
+
+  const filtered = scopedLogs.filter((log) => {
     const matchLocked = !lockedIntegrationName || log.integrationName === lockedIntegrationName;
     const matchStatus = filters.status === 'all' || log.status === filters.status;
     const matchConnector = filters.connector === 'all' || log.connectorType === filters.connector;
