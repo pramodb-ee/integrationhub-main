@@ -22,6 +22,7 @@ import GoogleAdsIntegrationFlow from './GoogleAdsIntegrationFlow';
 import GoogleFormsIntegrationFlow from './GoogleFormsIntegrationFlow';
 import JustDialIntegrationFlow from './JustDialIntegrationFlow';
 import LinkedInIntegrationFlow from './LinkedInIntegrationFlow';
+import DeveloperIntegrationFlow from './DeveloperIntegrationFlow';
 import ERPDataPull from '@/app/erp-data-pull/ERPDataPull';
 import { ConnectorType } from '@/components/ui/ConnectorIcon';
 import { ChevronLeft, ChevronRight, Save } from 'lucide-react';
@@ -38,6 +39,7 @@ const CONFIGURATION_ONLY_LABELS = ['Configuration'];
 const API_LABELS = ['Test Request', 'Field Mapping', 'Preview', 'Publish', 'Monitor'];
 const TELEPHONY_CONNECTORS: ConnectorType[] = ['tata', 'exotel', 'knowlarity', 'mcube', 'ozonetel', 'myoperator', 'ivr-custom'];
 const CONFIGURATION_ONLY_CONNECTORS: ConnectorType[] = ['exotel', 'knowlarity', 'mcube'];
+const DEVELOPER_CONNECTORS: ConnectorType[] = ['api', 'shiksha', 'collegedunia', 'webhook'];
 
 export default function SetupWizardContent() {
   const searchParams = useSearchParams();
@@ -211,6 +213,9 @@ export default function SetupWizardContent() {
   if (selectedConnector === 'linkedin') return <LinkedInIntegrationFlow />;
   if (selectedConnector === 'pull-from-erp') return <ERPDataPull />;
   if (isFacebook) return <FacebookIntegrationFlow />;
+  if (selectedConnector && DEVELOPER_CONNECTORS.includes(selectedConnector)) {
+    return <DeveloperIntegrationFlow connectorType={selectedConnector as 'api' | 'shiksha' | 'collegedunia' | 'webhook'} />;
+  }
 
   return (
     <div className="space-y-5">

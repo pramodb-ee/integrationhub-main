@@ -25,9 +25,12 @@ const CATEGORY_GROUPS: { label: string; connectors: ConnectorEntry[] }[] = [
     ],
   },
   {
-    label: 'Developer / API',
+    label: 'Publisher API',
     connectors: [
-      { type: 'api',          description: 'Generic REST API connector for custom integrations',        category: 'Developer / API' },
+      { type: 'api',          description: 'Generic REST API connector for custom integrations',        category: 'Publisher API' },
+      { type: 'shiksha',      description: 'Receive and process leads from Shiksha',                     category: 'Publisher API' },
+      { type: 'collegedunia', description: 'Capture student enquiries from CollegeDunia',                category: 'Publisher API' },
+      { type: 'webhook',      description: 'Receive real-time events through a secure webhook',           category: 'Publisher API' },
 
     ],
   },

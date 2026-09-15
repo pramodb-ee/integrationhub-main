@@ -2,7 +2,7 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
-import { CheckCircle2, Database, Plus, RefreshCw, Save, Trash2, X } from 'lucide-react';
+import { CheckCircle2, Code2, Download, Plus, RefreshCw, Save, Tag, Trash2, X } from 'lucide-react';
 import Modal from '@/components/ui/Modal';
 import {
   CRM_FIELDS,
@@ -33,6 +33,7 @@ type Log = {
   records: { raw: Row; crm: Row; error: string }[];
 };
 type Failed = { id: string; raw: Row; error: string };
+type StaticField = { id: string; field: string; value: string };
 function Section({
   title,
   subtitle,
@@ -112,6 +113,10 @@ function Json({ title, value }: { title: string; value: unknown }) {
 }
 
 export default function ERPDataPull() {
+  const [curl, setCurl] = useState(`curl -X GET "https://erp.example.com/api/students" \\
+  -H "Authorization: Bearer {token}" \\
+  -H "Content-Type: application/json"`);
+  const [parsedRequest, setParsedRequest] = useState<Record<string, unknown> | null>(null);
   const [config, setConfig] = useState<Config>({
     base: 'https://erp.example.com',
     auth: 'API Key',
@@ -124,6 +129,7 @@ export default function ERPDataPull() {
   const [tested, setTested] = useState(false);
   const [active, setActive] = useState(false);
   const [mappings, setMappings] = useState<Mapping[]>(INITIAL_MAPPINGS);
+  const [staticFields, setStaticFields] = useState<StaticField[]>([]);
   const [response, setResponse] = useState(JSON.stringify(SAMPLE, null, 2));
   const [raw, setRaw] = useState<Row[]>([]);
   const [parsed, setParsed] = useState<Row[]>([]);
@@ -145,6 +151,8 @@ export default function ERPDataPull() {
       if (value?.config && Array.isArray(value.mappings)) {
         setConfig(value.config);
         setMappings(value.mappings);
+        if (typeof value.curl === 'string') setCurl(value.curl);
+        if (Array.isArray(value.staticFields)) setStaticFields(value.staticFields);
       }
       const alerts = JSON.parse(localStorage.getItem(`${STORE}-alerts`) ?? 'null');
       if (alerts && Array.isArray(alerts.recipients)) {
@@ -190,11 +198,21 @@ export default function ERPDataPull() {
     return '';
   };
   const validate = (connect = false) => {
-    const issue = configError();
+    const method = curl.match(/(?:-X|--request)\s+['"]?([A-Z]+)/i)?.[1]?.toUpperCase() || 'GET';
+    const url = curl.match(/https?:\/\/[^\s'"\\]+/)?.[0];
+    const headers = [...curl.matchAll(/(?:-H|--header)\s+['"]([^'"]+)['"]/gi)].map(
+      (match) => match[1]
+    );
+    const issue = !curl.trim()
+      ? 'Paste a CURL request.'
+      : !url
+        ? 'CURL must contain a valid HTTP(S) URL.'
+        : '';
     setError(issue);
     if (!issue) {
-      if (connect) setConnected(true);
-      setNotice(connect ? 'ERP API connected in demo mode.' : 'API configuration validated.');
+      setParsedRequest({ method, url, headers });
+      setConnected(true);
+      setNotice('CURL validated successfully. Parsed Request and Pull Request are ready.');
     }
     return !issue;
   };
@@ -218,7 +236,15 @@ export default function ERPDataPull() {
     }
     try {
       const records = retry ? failed.map((f) => f.raw) : parseRecords(response);
-      const results = records.map((record) => ({ raw: record, ...transform(record, mappings) }));
+      const staticValues = Object.fromEntries(
+        staticFields
+          .filter((field) => field.field.trim())
+          .map((field) => [field.field.trim(), field.value])
+      );
+      const results = records.map((record) => {
+        const transformed = transform(record, mappings);
+        return { raw: record, ...transformed, crm: { ...transformed.crm, ...staticValues } };
+      });
       const errors = results.filter((r) => r.error);
       setRaw(records);
       setParsed(results.map((r) => r.crm));
@@ -275,7 +301,7 @@ export default function ERPDataPull() {
       return;
     }
     try {
-      localStorage.setItem(STORE, JSON.stringify({ config, mappings }));
+      localStorage.setItem(STORE, JSON.stringify({ config, curl, mappings, staticFields }));
       setActive(true);
       setNotice('Integration saved and active in this demo session. Credentials are not stored.');
       setError('');
@@ -308,6 +334,18 @@ export default function ERPDataPull() {
       setError('Could not save alert settings.');
     }
   };
+  const downloadRecords = (log: Log, kind: 'success' | 'failed') => {
+    const rows = log.records
+      .filter((record) => (kind === 'failed' ? Boolean(record.error) : !record.error))
+      .map((record) => (kind === 'failed' ? { ...record.raw, error: record.error } : record.crm));
+    const blob = new Blob([JSON.stringify(rows, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement('a');
+    anchor.href = url;
+    anchor.download = `erp-${kind}-requests-${log.id}.json`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  };
   const sourceFields = [...new Set([...SAMPLE.flatMap(Object.keys), ...raw.flatMap(Object.keys)])];
   return (
     <div className="space-y-5">
@@ -317,19 +355,6 @@ export default function ERPDataPull() {
           <p className="mt-1 text-sm text-muted-foreground">
             Connect and pull data from your ERP system into ExtraaEdge CRM
           </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <button className={primary} onClick={() => validate(true)}>
-            <Database size={14} />
-            Connect ERP API
-          </button>
-          <button className={btn} onClick={testConnection}>
-            Test Connection
-          </button>
-          <button className={primary} onClick={save}>
-            <Save size={14} />
-            Save Integration
-          </button>
         </div>
       </header>
       <p className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-xs text-blue-700">
@@ -353,67 +378,75 @@ export default function ERPDataPull() {
           {error}
         </p>
       )}
-      <Section title="API Configuration">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-          <label className="space-y-2 text-xs">
-            ERP Base URL
-            <input
-              className={input}
-              value={config.base}
-              onChange={(e) => changeConfig('base', e.target.value)}
-            />
-          </label>
-          <Select
-            label="Authentication Type"
-            value={config.auth}
-            options={['API Key', 'OAuth', 'Token']}
-            onChange={(v) => changeConfig('auth', v)}
-          />
-          <label className="space-y-2 text-xs">
-            API Key / Access Token
-            <input
-              type="password"
-              autoComplete="off"
-              placeholder="Optional for demo"
-              className={input}
-              value={secret}
-              onChange={(e) => {
-                setSecret(e.target.value);
-                setConnected(false);
-                invalidate();
-              }}
-            />
-          </label>
-          <label className="space-y-2 text-xs">
-            Endpoint URL
-            <input
-              className={input}
-              value={config.endpoint}
-              onChange={(e) => changeConfig('endpoint', e.target.value)}
-            />
-          </label>
+      <Section
+        title="API CURL Editor"
+        subtitle="Paste the CURL request used to pull records from your ERP."
+      >
+        <textarea
+          aria-label="ERP API CURL"
+          rows={7}
+          value={curl}
+          onChange={(e) => {
+            setCurl(e.target.value);
+            setParsedRequest(null);
+            setConnected(false);
+            invalidate();
+          }}
+          className="w-full rounded-xl border border-slate-700 bg-slate-950 p-4 font-mono text-xs leading-6 text-emerald-300 focus:outline-none focus:ring-2 focus:ring-primary/30"
+        />
+        <div className="grid items-end gap-4 md:grid-cols-[260px_1fr]">
           <Select
             label="Sync Frequency"
             value={config.sync}
-            options={['Hourly', 'Daily', 'Weekly']}
-            onChange={(v) => changeConfig('sync', v)}
+            options={['Hourly', '3 Hours', 'Daily', 'Weekly']}
+            onChange={(value) => changeConfig('sync', value)}
           />
-          <Select
-            label="Data Direction"
-            value={config.direction}
-            options={['Pull', 'Push', 'Bidirectional']}
-            onChange={(v) => changeConfig('direction', v)}
-          />
-        </div>
-        <div className="flex items-center gap-3">
-          <button className={btn} onClick={() => validate()}>
-            Validate API
+          <button className={`${primary} w-fit`} onClick={() => validate()}>
+            <CheckCircle2 size={14} />
+            Validate CURL
           </button>
-          <span className={`text-xs ${connected ? 'text-green-600' : 'text-muted-foreground'}`}>
-            {connected ? 'Connected (demo)' : 'Not connected'}
-          </span>
         </div>
       </Section>
+      {parsedRequest && (
+        <Section
+          title="Parsed Request"
+          subtitle="Auto-parsed HTTP method, URL and headers from the CURL request."
+        >
+          <Json title="Parsed CURL Request" value={parsedRequest} />
+        </Section>
+      )}
+      {parsedRequest && (
+        <Section
+          title="Pull Request"
+          subtitle="Fetch a sample ERP response using the validated CURL request."
+        >
+          <details>
+            <summary className="cursor-pointer text-xs font-medium">
+              Demo ERP response · edit to test success and failure
+            </summary>
+            <textarea
+              aria-label="Demo ERP response JSON"
+              rows={8}
+              className={`${input} mt-3 font-mono text-xs`}
+              value={response}
+              onChange={(e) => {
+                setResponse(e.target.value);
+                invalidate();
+                setRaw([]);
+                setParsed([]);
+              }}
+            />
+          </details>
+          <button className={primary} disabled={!connected} onClick={() => run()}>
+            <RefreshCw size={14} />
+            Pull Request
+          </button>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Json title="ERP Response JSON" value={raw} />
+            <Json title="Parsed CRM JSON" value={parsed} />
+          </div>
+        </Section>
+      )}
       <Section
         title="Field Mapping"
         subtitle="Map the API response to CRM fields. LeadName and MobileNumber are required."
@@ -490,41 +523,131 @@ export default function ERPDataPull() {
           <p className="text-xs text-red-600">{mappingErrors(mappings).join(' ')}</p>
         )}
       </Section>
-      <Section title="Sample Data Pull">
-        <details>
-          <summary className="cursor-pointer text-xs font-medium">
-            Demo ERP response · edit to test success and failure
-          </summary>
-          <textarea
-            aria-label="Demo ERP response JSON"
-            rows={8}
-            className={`${input} mt-3 font-mono text-xs`}
-            value={response}
-            onChange={(e) => {
-              setResponse(e.target.value);
-              invalidate();
-              setRaw([]);
-              setParsed([]);
-            }}
-          />
-        </details>
-        <button className={primary} disabled={!connected} onClick={() => run()}>
-          <RefreshCw size={14} />
-          Pull Sample Data
-        </button>
-        <div className="grid gap-4 md:grid-cols-2">
-          <Json title="ERP Response JSON" value={raw} />
-          <Json title="Parsed CRM JSON" value={parsed} />
-        </div>
-        {raw.length > 0 && (
-          <p className={`text-xs ${tested ? 'text-green-600' : 'text-amber-600'}`}>
-            {tested
-              ? 'Sample pull successful — all records validated.'
-              : 'Review validation failures in monitoring logs.'}
-          </p>
+      {false && (
+        <Section title="Sample Data Pull">
+          <details>
+            <summary className="cursor-pointer text-xs font-medium">
+              Demo ERP response · edit to test success and failure
+            </summary>
+            <textarea
+              aria-label="Demo ERP response JSON"
+              rows={8}
+              className={`${input} mt-3 font-mono text-xs`}
+              value={response}
+              onChange={(e) => {
+                setResponse(e.target.value);
+                invalidate();
+                setRaw([]);
+                setParsed([]);
+              }}
+            />
+          </details>
+          <button className={primary} disabled={!connected} onClick={() => run()}>
+            <RefreshCw size={14} />
+            Pull Sample Data
+          </button>
+          <div className="grid gap-4 md:grid-cols-2">
+            <Json title="ERP Response JSON" value={raw} />
+            <Json title="Parsed CRM JSON" value={parsed} />
+          </div>
+          {raw.length > 0 && (
+            <p className={`text-xs ${tested ? 'text-green-600' : 'text-amber-600'}`}>
+              {tested
+                ? 'Sample pull successful — all records validated.'
+                : 'Review validation failures in monitoring logs.'}
+            </p>
+          )}
+        </Section>
+      )}
+      <Section
+        title="Static Fields"
+        subtitle="Fields with fixed values applied to every pulled record."
+      >
+        {staticFields.length === 0 ? (
+          <div className="rounded-xl border-2 border-dashed border-border py-8 text-center">
+            <Tag size={24} className="mx-auto mb-2 text-muted-foreground" />
+            <p className="mb-1 text-[13px] font-semibold">No static fields yet</p>
+            <p className="mb-4 text-[11px] text-muted-foreground">
+              Add a field and fixed value applied to every synced record.
+            </p>
+            <button
+              className={btn}
+              onClick={() =>
+                setStaticFields((current) => [
+                  ...current,
+                  { id: crypto.randomUUID(), field: '', value: '' },
+                ])
+              }
+            >
+              <Plus size={12} />
+              Add Static Field
+            </button>
+          </div>
+        ) : (
+          <div className="overflow-hidden rounded-xl border border-border">
+            <div className="grid grid-cols-[1fr_1fr_40px] bg-muted/50 p-3 text-[10px] font-semibold uppercase text-muted-foreground">
+              <span>Field Name</span>
+              <span>Field Value</span>
+              <span />
+            </div>
+            {staticFields.map((field) => (
+              <div
+                key={field.id}
+                className="grid grid-cols-[1fr_1fr_40px] items-center gap-3 border-t border-border p-3"
+              >
+                <input
+                  list="erp-source-fields"
+                  value={field.field}
+                  onChange={(e) =>
+                    setStaticFields((current) =>
+                      current.map((item) =>
+                        item.id === field.id ? { ...item, field: e.target.value } : item
+                      )
+                    )
+                  }
+                  placeholder="Select or enter field"
+                  className={input}
+                />
+                <input
+                  value={field.value}
+                  onChange={(e) =>
+                    setStaticFields((current) =>
+                      current.map((item) =>
+                        item.id === field.id ? { ...item, value: e.target.value } : item
+                      )
+                    )
+                  }
+                  placeholder="Enter fixed value"
+                  className={input}
+                />
+                <button
+                  className={btn}
+                  onClick={() =>
+                    setStaticFields((current) => current.filter((item) => item.id !== field.id))
+                  }
+                >
+                  <Trash2 size={13} />
+                </button>
+              </div>
+            ))}
+            <div className="flex justify-end border-t border-border p-3">
+              <button
+                className={btn}
+                onClick={() =>
+                  setStaticFields((current) => [
+                    ...current,
+                    { id: crypto.randomUUID(), field: '', value: '' },
+                  ])
+                }
+              >
+                <Plus size={12} />
+                Add Static Field
+              </button>
+            </div>
+          </div>
         )}
       </Section>
-      <Section title="Integration Monitoring">
+      <Section title="Integration Monitoring" subtitle="Automatic retry interval: 15 minutes">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[750px] text-left text-xs">
             <thead className="bg-muted">
@@ -535,7 +658,7 @@ export default function ERPDataPull() {
                   'Success Count',
                   'Failed Count',
                   'Status',
-                  'Error Reason',
+                  'Action',
                 ].map((h) => (
                   <th className="p-3" key={h}>
                     {h}
@@ -551,7 +674,34 @@ export default function ERPDataPull() {
                   <td className="p-3 text-green-600">{log.success}</td>
                   <td className="p-3 text-red-600">{log.failed}</td>
                   <td className="p-3">{log.status}</td>
-                  <td className="p-3">{log.reason || '—'}</td>
+                  <td className="p-3">
+                    <div className="flex flex-wrap gap-1.5">
+                      <button
+                        className={btn}
+                        disabled={!log.failed || !connected}
+                        onClick={() => run(true)}
+                      >
+                        <RefreshCw size={12} />
+                        Retry (15 min)
+                      </button>
+                      <button
+                        className={btn}
+                        disabled={!log.success}
+                        onClick={() => downloadRecords(log, 'success')}
+                      >
+                        <Download size={12} />
+                        Success
+                      </button>
+                      <button
+                        className={btn}
+                        disabled={!log.failed}
+                        onClick={() => downloadRecords(log, 'failed')}
+                      >
+                        <Download size={12} />
+                        Failed
+                      </button>
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
@@ -563,9 +713,6 @@ export default function ERPDataPull() {
         <div className="flex gap-2">
           <button className={btn} disabled={!logs.length} onClick={() => setShowLogs(true)}>
             View Detailed Logs
-          </button>
-          <button className={btn} disabled={!failed.length || !connected} onClick={() => run(true)}>
-            Retry Failed Records ({failed.length})
           </button>
         </div>
         {failed.map((f) => (

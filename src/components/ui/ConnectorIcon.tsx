@@ -3,7 +3,7 @@ import React from 'react';
 export type ConnectorType =
   | 'facebook' | 'google-forms' | 'google-ads' | 'justdial' | 'linkedin' | 'wordpress'
 
-  | 'api'| 'js' | 'php'  |'ivr'| 'tata' | 'exotel' | 'knowlarity' | 'twilio' | 'mcube' | 'ozonetel' | 'myoperator' | 'cloudtalk' | 'ringcentral' | 'ivr-custom' |'erp-crm'
+  | 'api' | 'shiksha' | 'collegedunia' | 'webhook' | 'js' | 'php'  |'ivr'| 'tata' | 'exotel' | 'knowlarity' | 'twilio' | 'mcube' | 'ozonetel' | 'myoperator' | 'cloudtalk' | 'ringcentral' | 'ivr-custom' |'erp-crm'
   | 'pull-from-crm' | 'pull-from-erp' | 'erp-two-way'
   | 'zapier';
 
@@ -24,6 +24,9 @@ const connectorConfig: Record<ConnectorType, { label: string; bg: string; text: 
 
   // Developer / API
   'api':           { label: 'API',              bg: '#0F172A', text: '#38BDF8', abbr: 'API' },
+  'shiksha':       { label: 'Shiksha',          bg: '#F97316', text: '#FFFFFF', abbr: 'SH'  },
+  'collegedunia':  { label: 'CollegeDunia',     bg: '#DC2626', text: '#FFFFFF', abbr: 'CD'  },
+  'webhook':       { label: 'Webhook',          bg: '#0891B2', text: '#FFFFFF', abbr: 'WH'  },
   'js':            { label: 'JavaScript',       bg: '#F7DF1E', text: '#0F172A', abbr: 'JS'  },
   'php':           { label: 'PHP',              bg: '#777BB4', text: '#FFFFFF', abbr: 'PHP' },
 

@@ -17,10 +17,13 @@ export const CATALOG_CATEGORIES = [
   },
   {
     id: 'developer-api',
-    label: 'Developer / API',
+    label: 'Publisher API',
     description: 'Code-level and API-based integrations',
     connectors: [
       { type: 'api' as ConnectorType,          description: 'Generic REST API connector for custom integrations',          popular: true  },
+      { type: 'shiksha' as ConnectorType,      description: 'Receive and process leads from Shiksha',                      popular: true  },
+      { type: 'collegedunia' as ConnectorType, description: 'Capture student enquiries from CollegeDunia'                                 },
+      { type: 'webhook' as ConnectorType,      description: 'Receive real-time events through a secure webhook',           popular: true  },
 
     ],
   },

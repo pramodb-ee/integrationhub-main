@@ -281,9 +281,10 @@ export interface ApiMappingState {
 }
 
 export default function FieldMappingStep({ connectorType, requestPayload, initialState, onStateChange }: FieldMappingStepProps) {
+  const usesSimpleStaticMapping = ['api', 'shiksha', 'collegedunia', 'webhook'].includes(connectorType);
   const pendingFocus = useRef<string | null>(null);
   const sourceSelects = useRef<Record<string, HTMLSelectElement | null>>({});
-  const [mappings, setMappings] = useSetupState<FieldMapping[]>('api', 'FieldMappingStep.mappings', () => initialState?.mappings ?? (requestPayload ? Object.keys(requestPayload).map((sourceField, index) => {
+  const [mappings, setMappings] = useSetupState<FieldMapping[]>(connectorType, 'FieldMappingStep.mappings', () => initialState?.mappings ?? (requestPayload ? Object.keys(requestPayload).map((sourceField, index) => {
     const aliases: Record<string, string> = { name: 'lead_name', full_name: 'lead_name', phone: 'mobile', phone_number: 'mobile', email_address: 'email', status: 'lead_status' };
     const destinationField = aliases[sourceField] ?? (destinationFields.includes(sourceField) ? sourceField : '');
     return { id: `map-${index}`, sourceField, destinationField, dataType: inferDataType(sourceField), operations: ['add'], transform: 'none', required: isRequiredDestField(destinationField), enabled: true, validationStatus: 'idle' } as FieldMapping;
@@ -297,7 +298,7 @@ export default function FieldMappingStep({ connectorType, requestPayload, initia
   const [showCompare, setShowCompare] = useState(false);
 
   // Capping
-  const [capping, setCapping] = useSetupState<CappingConfig>('api', 'FieldMappingStep.capping', initialState?.capping ?? {
+  const [capping, setCapping] = useSetupState<CappingConfig>(connectorType, 'FieldMappingStep.capping', initialState?.capping ?? {
     enabled: false,
     scope: 'primary_source',
     requestLimit: 100,
@@ -311,7 +312,7 @@ export default function FieldMappingStep({ connectorType, requestPayload, initia
   const [previewCapping, setPreviewCapping] = useState<SavedCapping | null>(null);
 
   // Static fields
-  const [staticFields, setStaticFields] = useSetupState<ApiMappingState['staticFields']>('api', 'FieldMappingStep.staticFields', initialState?.staticFields ?? []);
+  const [staticFields, setStaticFields] = useSetupState<ApiMappingState['staticFields']>(connectorType, 'FieldMappingStep.staticFields', initialState?.staticFields ?? []);
 
   useEffect(() => { onStateChange?.({ mappings, staticFields, capping }); }, [mappings, staticFields, capping, onStateChange]);
 
@@ -409,6 +410,10 @@ export default function FieldMappingStep({ connectorType, requestPayload, initia
     setStaticFields((prev) => [...prev, { id: crypto.randomUUID(), key: preset.key, label: preset.label, value: preset.defaultVal }]);
   };
   const removeStaticField = (id: string) => setStaticFields((prev) => prev.filter((f) => f.id !== id));
+  const addSimpleStaticField = () => {
+    setStaticError('');
+    setStaticFields((prev) => [...prev, { id: crypto.randomUUID(), key: '', label: 'Static Field', value: '' }]);
+  };
 
   /* ── Capping helpers ── */
   const updateCappingField = (key: string, updates: Partial<CappingField>) => {
@@ -689,6 +694,31 @@ export default function FieldMappingStep({ connectorType, requestPayload, initia
       {activeTab === 'static' && (
         <div className="space-y-4">
           {staticError && <p role="alert" className="text-[12px] text-danger">{staticError}</p>}
+          {usesSimpleStaticMapping ? (
+            staticFields.length === 0 ? (
+              <div className="rounded-xl border-2 border-dashed border-border py-9 text-center">
+                <Tag size={24} className="mx-auto mb-2 text-muted-foreground" />
+                <p className="mb-1 text-[13px] font-semibold text-foreground">No static fields yet</p>
+                <p className="mb-4 text-[11px] text-muted-foreground">Pick an unmapped API field and give it a fixed value applied to every synced record.</p>
+                <button type="button" onClick={addSimpleStaticField} className="mx-auto flex h-8 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-[11px] font-medium hover:bg-muted"><Plus size={11} />Add Static Field</button>
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-xl border border-border">
+                <div className="grid grid-cols-[100px_1fr_1fr_28px] gap-2 border-b border-border bg-muted/50 px-4 py-2.5">
+                  <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Data Type</p><p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Field Name</p><p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Field Value</p><p />
+                </div>
+                <div className="divide-y divide-border">{staticFields.map((sf) => (
+                  <div key={sf.id} className="group grid grid-cols-[100px_1fr_1fr_28px] items-center gap-2 px-4 py-2">
+                    <span className="w-fit rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-600">String</span>
+                    <div className="min-w-0"><input aria-label="Static field name" list={`static-field-options-${sf.id}`} value={sf.key} onChange={(event) => { setStaticError(''); setStaticFields((prev) => prev.map((field) => field.id === sf.id ? { ...field, key: event.target.value } : field)); }} placeholder="Select or enter field..." className="h-7 w-full rounded-md border border-border bg-card px-2 text-[11px]" /><datalist id={`static-field-options-${sf.id}`}>{srcFields.map((field) => <option key={field} value={field} />)}</datalist></div>
+                    <input aria-label="Static field value" type="text" value={sf.value} onChange={(event) => setStaticFields((prev) => prev.map((field) => field.id === sf.id ? { ...field, value: event.target.value } : field))} placeholder="Enter fixed value" className="h-7 w-full rounded-md border border-border bg-card px-2 text-[11px]" />
+                    <button type="button" aria-label="Remove static field" onClick={() => removeStaticField(sf.id)} className="text-muted-foreground opacity-0 transition-all hover:text-red-500 group-hover:opacity-100"><Trash2 size={12} /></button>
+                  </div>
+                ))}</div>
+                <div className="flex justify-end border-t border-border px-4 py-3"><button type="button" onClick={addSimpleStaticField} className="flex h-8 items-center gap-1.5 rounded-lg border border-border bg-card px-3 text-[11px] font-medium hover:bg-muted"><Plus size={11} />Add Static Field</button></div>
+              </div>
+            )
+          ) : (<>
           <div className="p-3 rounded-lg bg-info-bg border border-info-border">
             <p className="text-[12px] text-info">
               <span className="font-semibold">Static fields</span> are fixed values injected into every lead record regardless of source data.
@@ -732,6 +762,7 @@ export default function FieldMappingStep({ connectorType, requestPayload, initia
               ))}
             </div>
           )}
+          </>)}
         </div>
       )}
 

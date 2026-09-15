@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import {
   Check, ChevronRight, Copy, GitBranch, Link2, Loader2, RefreshCw, Trash2, X,
 } from 'lucide-react';
+import { getConnectorLabel } from '@/components/ui/ConnectorIcon';
 
 interface TestRequestPayload {
   name: string;
@@ -62,14 +63,15 @@ function buildSeedRequests(): TestRequest[] {
 }
 
 interface ApiTestRequestStepProps {
+  connectorType?: 'api' | 'shiksha' | 'collegedunia' | 'webhook';
   integrationName?: string;
   isNewIntegration?: boolean;
   onFieldMappingCreated: (payload: Record<string, unknown>) => void;
   onCaptureRequest?: (payload: Record<string, unknown>) => string | null;
 }
 
-export default function ApiTestRequestStep({ integrationName, isNewIntegration = false, onFieldMappingCreated, onCaptureRequest }: ApiTestRequestStepProps) {
-  const [endpoint] = useState(() => `https://eeintegration-test.azurewebsites.net/api/integration/${generateToken()}`);
+export default function ApiTestRequestStep({ connectorType = 'api', integrationName, isNewIntegration = false, onFieldMappingCreated, onCaptureRequest }: ApiTestRequestStepProps) {
+  const [endpoint] = useState(() => `https://eeintegration-test.azurewebsites.net/api/integration/${connectorType}/${generateToken()}`);
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState('');
   const [refreshing, setRefreshing] = useState(false);
@@ -118,7 +120,7 @@ export default function ApiTestRequestStep({ integrationName, isNewIntegration =
   return (
     <div className="space-y-5">
       <div>
-        <p className="text-[13px] font-semibold text-foreground">Test Request</p>
+        <p className="text-[13px] font-semibold text-foreground">{getConnectorLabel(connectorType)} Test Request</p>
         <p className="text-[11px] text-muted-foreground mt-0.5">{integrationName ? `${integrationName} — ` : ''}Send a sample request to your integration endpoint to verify it&rsquo;s reachable.</p>
       </div>
 

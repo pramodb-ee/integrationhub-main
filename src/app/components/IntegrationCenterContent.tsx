@@ -49,7 +49,7 @@ const TYPE_CATEGORY_MAP: Record<string, string> = {
   facebook: 'Lead Sources', 'google-forms': 'Lead Sources', 'google-ads': 'Lead Sources',
   justdial: 'Lead Sources', linkedin: 'Lead Sources', wordpress: 'Lead Sources',
 
-  api: 'Developer / API', js: 'Developer / API', php: 'Developer / API',
+  api: 'Publisher API', shiksha: 'Publisher API', collegedunia: 'Publisher API', webhook: 'Publisher API', js: 'Developer / API', php: 'Developer / API',
   ivr: 'Telephony / IVR', twilio: 'Telephony / IVR', mcube: 'Telephony / IVR', ozonetel: 'Telephony / IVR',
   myoperator: 'Telephony / IVR', cloudtalk: 'Telephony / IVR', ringcentral: 'Telephony / IVR', 'ivr-custom': 'Telephony / IVR',
   tata: 'Telephony / IVR', exotel: 'Telephony / IVR', knowlarity: 'Telephony / IVR',

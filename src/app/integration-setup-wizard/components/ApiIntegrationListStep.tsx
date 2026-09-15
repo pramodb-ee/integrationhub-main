@@ -19,7 +19,7 @@ export interface ApiIntegration {
 }
 
 const INTEGRATION_TYPE_OPTIONS = [
-  'API', 'Publisher', 'Webhook', 'Shiksha', 'Career360', 'CollegeDekho', 'CollegeDisha', 'CollegeSearch', 'Collegedunia',
+  'API', 'Webhook', 'Shiksha', 'Career360', 'CollegeDekho', 'CollegeDisha', 'CollegeSearch', 'Collegedunia',
 ];
 
 export const SEED_INTEGRATIONS: ApiIntegration[] = [
