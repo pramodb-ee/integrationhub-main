@@ -134,6 +134,12 @@ const fieldInput = 'w-full h-9 px-3 text-[12px] bg-card border border-border rou
 export default function GoogleFormsIntegrationFlow() {
   const [step, setStep] = useState(0);
 
+  const [integrationName, setIntegrationName] = useSetupState(
+    'google-forms',
+    'GoogleFormsIntegrationFlow.integrationName',
+    '',
+  );
+
   // Connect Google Account
   const [connecting, setConnecting] = useState(false);
   const [connected, setConnected] = useSetupState('google-forms', 'GoogleFormsIntegrationFlow.connected', false);
@@ -171,7 +177,7 @@ export default function GoogleFormsIntegrationFlow() {
 
   const availableStaticFields = STATIC_FIELD_POOL.filter((field) => !staticFields.some((sf) => sf.field === field));
 
-  const canProceedStep0 = connected && !!sheet && mappingValid;
+  const canProceedStep0 = !!integrationName.trim() && connected && !!sheet && mappingValid;
   const canActivate = trigger && authorized && testLeads.some((lead) => lead.addedToCrm);
 
   const handleConnect = () => {
@@ -270,7 +276,7 @@ export default function GoogleFormsIntegrationFlow() {
   const activate = () => {
     const row: Integration = {
       id: `int-gform-${Date.now()}`,
-      name: sheet?.name ? `Google Form - ${sheet.name}` : 'Google Form Integration',
+      name: integrationName.trim(),
       type: 'google-forms',
       status: 'active',
       lastSync: 'Just now',
@@ -340,6 +346,23 @@ export default function GoogleFormsIntegrationFlow() {
 
       {step === 0 && (
         <div className="space-y-4">
+          <label className="block">
+            <span className="mb-1 block text-[12px] font-semibold text-foreground">
+              Integration Name <span className="text-danger">*</span>
+            </span>
+            <span className="mb-2 block text-[11px] text-muted-foreground">
+              A descriptive name to identify this integration in the center
+            </span>
+            <input
+              type="text"
+              value={integrationName}
+              onChange={(event) => setIntegrationName(event.target.value)}
+              placeholder="e.g. Google Forms Integration"
+              aria-required="true"
+              className="h-10 w-full rounded-lg border border-border bg-card px-3 text-[12px] focus:outline-none focus:ring-2 focus:ring-primary/20"
+            />
+          </label>
+
           {/* Connect Google Account */}
           <SectionCard
             icon={<GoogleLogo size={18} />}

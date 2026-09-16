@@ -1,7 +1,7 @@
 import React from 'react';
 import ConnectorIcon, { ConnectorType } from '@/components/ui/ConnectorIcon';
 import { CheckCircle, AlertTriangle, XCircle, RefreshCw, Plus, Pause } from 'lucide-react';
-import Icon from '@/components/ui/AppIcon';
+import type { Integration } from './IntegrationTable';
 
 
 interface ActivityItem {
@@ -33,7 +33,14 @@ const typeConfig = {
   paused: { icon: Pause, color: 'text-muted-foreground', bg: 'bg-muted' },
 };
 
-export default function IntegrationActivityFeed() {
+export default function IntegrationActivityFeed({ integrations }: { integrations: Integration[] }) {
+  const visibleActivities = activities.filter((activity) =>
+    integrations.some(
+      (integration) =>
+        integration.name === activity.integration && integration.type === activity.connector
+    )
+  );
+
   return (
     <div className="card-base p-5 h-full">
       <div className="flex items-center justify-between mb-4">
@@ -47,7 +54,7 @@ export default function IntegrationActivityFeed() {
         </div>
       </div>
       <div className="space-y-3 overflow-y-auto" style={{ maxHeight: '320px' }}>
-        {activities.map((item) => {
+        {visibleActivities.map((item) => {
           const cfg = typeConfig[item.type];
           const Icon = cfg.icon;
           return (
@@ -66,6 +73,11 @@ export default function IntegrationActivityFeed() {
             </div>
           );
         })}
+        {visibleActivities.length === 0 && (
+          <p className="py-8 text-center text-[11px] text-muted-foreground">
+            No recent activity for configured integrations.
+          </p>
+        )}
       </div>
     </div>
   );

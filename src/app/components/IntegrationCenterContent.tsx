@@ -300,7 +300,7 @@ export default function IntegrationCenterContent() {
           <ConnectorDistributionChart />
         </div>
         <div className="lg:col-span-2 2xl:col-span-2">
-          <IntegrationActivityFeed />
+          <IntegrationActivityFeed integrations={integrations} />
         </div>
       </div>
 

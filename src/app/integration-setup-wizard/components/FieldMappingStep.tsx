@@ -7,7 +7,7 @@ import { mappingErrors, fieldValueError, mappedPayload } from './apiMapping';
 import {
   Plus, Trash2, AlertCircle, ChevronDown, GitBranch,
   RotateCcw, Eye, CheckCircle, Tag, Hash, Layers, X, AlertTriangle, Edit2, Save,
-  XCircle, ArrowRight,
+  XCircle,
 } from 'lucide-react';
 
 /* ─────────────────────────── Types ─────────────────────────── */
@@ -83,12 +83,18 @@ export const destinationFields = [
   'source', 'campaign_name', 'ad_name', 'ad_id', 'keyword',
   'notes', 'lead_score', 'assigned_to', 'created_at', 'raw_data',
   'lead_status', 'lead_source', 'lead_channel', 'lead_campaign', 'lead_medium', 'course',
+  'location', 'center',
 ];
 
 // Fields that require the Operations dropdown
 const OPERATION_FIELDS = [
-  'Entity1', 'Entity2', 'Entity3', 'Entity4',
-  'lead_source', 'lead_channel', 'lead_campaign', 'lead_medium',
+  'lead_source',
+  'lead_campaign',
+  'lead_channel',
+  'lead_medium',
+  'course',
+  'location',
+  'center',
 ];
 
 // Fields that are required (shown with red "Required" indicator)
@@ -182,7 +188,7 @@ const getDefaultMappings = (type: ConnectorType): FieldMapping[] => {
 };
 
 const isOperationField = (destField: string): boolean => {
-  return OPERATION_FIELDS.some((f) => destField.includes(f) || destField === f);
+  return OPERATION_FIELDS.includes(destField);
 };
 
 const isRequiredDestField = (destField: string): boolean => {
@@ -460,7 +466,7 @@ export default function FieldMappingStep({ connectorType, requestPayload, initia
   /* ─────────────────────────── Render ─────────────────────────── */
   return (
     <div>
-      {connectorType === 'api' && mappingErrors({ mappings, staticFields, capping }, requestPayload).length > 0 && <div role="alert" className="mb-4 p-3 text-[12px] text-danger bg-danger-bg rounded-lg">{mappingErrors({ mappings, staticFields, capping }, requestPayload).join(' ')}</div>}
+      {usesSimpleStaticMapping && mappingErrors({ mappings, staticFields, capping }, requestPayload).length > 0 && <div role="alert" className="mb-4 p-3 text-[12px] text-danger bg-danger-bg rounded-lg">{mappingErrors({ mappings, staticFields, capping }, requestPayload).join(' ')}</div>}
       {/* Header */}
       <div className="mb-4">
         <div className="flex items-center justify-between flex-wrap gap-2">
@@ -535,21 +541,20 @@ export default function FieldMappingStep({ connectorType, requestPayload, initia
       {/* ══════════════ FIELD MAPPING TAB ══════════════ */}
       {activeTab === 'fields' && (
         <>
-          {connectorType === 'api' ? <div className="overflow-x-auto rounded-lg border border-border mb-4">
-            <table className="w-full min-w-[950px] text-left text-[12px]">
-              <thead className="bg-muted/40 text-muted-foreground"><tr>{['Data Type', 'Source Field (API)', '', 'Target Field (CRM)', 'Validation', 'Actions'].map((label, i) => <th key={i} className="px-3 py-3 font-medium">{label}</th>)}</tr></thead>
+          {usesSimpleStaticMapping ? <div className="overflow-x-auto rounded-lg border border-border mb-4">
+            <table className="w-full min-w-[800px] text-left text-[12px]">
+              <thead className="bg-muted/50 text-muted-foreground"><tr>{['Source Field', 'Destination Field', 'Operation', 'Validation', 'Action'].map((label) => <th key={label} className={`px-3 py-2 text-[11px] font-semibold uppercase tracking-wide ${label === 'Action' ? 'text-center' : ''}`}>{label}</th>)}</tr></thead>
               <tbody>{mappings.map((mapping) => {
                 const required = isRequiredDestField(mapping.destinationField);
                 const value = requestPayload ? mappedPayload(requestPayload, { mappings: [mapping], staticFields: [], capping })[mapping.destinationField] : undefined;
                 const issue = !mapping.sourceField || !mapping.destinationField ? 'Select source and target fields' : requestPayload ? fieldValueError(mapping.destinationField, value) : null;
                 const label = (field: string) => ({ email: 'Email', mobile: 'Mobile', lead_status: 'Status' }[field] ?? field.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()));
-                return <tr key={mapping.id} className="border-t border-border">
-                  <td className="px-3 py-2"><span className={`rounded-sm border px-2 py-0.5 text-[11px] ${mapping.dataType === 'email' ? 'border-cyan-200 bg-cyan-50 text-cyan-600' : 'border-blue-200 bg-blue-50 text-blue-600'}`}>{DATA_TYPES.find((d) => d.value === mapping.dataType)?.label}</span></td>
+                return <tr key={mapping.id} className={`border-t border-border transition-colors hover:bg-muted/20 ${required ? 'bg-primary/3' : ''}`}>
                   <td className="px-3 py-2"><select ref={(el) => { sourceSelects.current[mapping.id] = el; }} aria-label="Source field" value={mapping.sourceField} onChange={(e) => updateMapping(mapping.id, 'sourceField', e.target.value)} className="h-8 w-full rounded-md border border-border bg-card px-3 focus:outline-none focus:ring-2 focus:ring-blue-400"><option value="">Select source field</option>{srcFields.map((field) => <option key={field} disabled={mappings.some((other) => other.id !== mapping.id && other.sourceField === field)}>{field}</option>)}</select></td>
-                  <td><ArrowRight size={17} className="text-blue-500" /></td>
                   <td className="px-3 py-2"><div className="relative"><select aria-label="Target field (CRM)" aria-required={required} value={mapping.destinationField} onChange={(e) => updateMapping(mapping.id, 'destinationField', e.target.value)} className={`h-8 w-full rounded-md border border-border bg-card px-3 focus:outline-none focus:ring-2 focus:ring-blue-400 ${required ? 'pr-24' : ''}`}><option value="">Select target field</option>{destinationFields.map((field) => <option key={field} value={field} disabled={mappings.some((other) => other.id !== mapping.id && other.destinationField === field) || staticFields.some((f) => f.key === field)}>{label(field)}</option>)}</select>{required && <span className="pointer-events-none absolute right-6 top-1.5 rounded-sm border border-red-200 bg-red-50 px-1.5 text-[10px] text-red-500">Required</span>}</div></td>
+                  <td className="px-3 py-2">{isOperationField(mapping.destinationField) ? <OperationDropdown operations={mapping.operations} onChange={(operations) => updateMapping(mapping.id, 'operations', operations)} /> : <span className="text-[10px] italic text-muted-foreground/50">—</span>}</td>
                   <td className="px-3 py-2"><span aria-live="polite" className={issue ? 'inline-flex items-center gap-1 rounded-sm border border-red-200 bg-red-50 px-2 py-0.5 text-[11px] text-red-500' : 'text-emerald-600 text-[11px]'}>{issue ? <><X size={11} />{issue}</> : <span className="inline-flex items-center gap-1"><CheckCircle size={12} />Valid</span>}</span></td>
-                  <td className="px-3 py-2"><button type="button" aria-label={`Delete ${mapping.sourceField || 'empty'} mapping`} onClick={() => removeMapping(mapping.id)} className="rounded p-2 text-red-500 hover:bg-red-50"><Trash2 size={14} /></button></td>
+                  <td className="px-3 py-2 text-center"><button type="button" aria-label={`Delete ${mapping.sourceField || 'empty'} mapping`} onClick={() => removeMapping(mapping.id)} className="rounded p-2 text-muted-foreground hover:bg-red-50 hover:text-red-500"><Trash2 size={14} /></button></td>
                 </tr>;
               })}</tbody>
             </table>
@@ -710,7 +715,7 @@ export default function FieldMappingStep({ connectorType, requestPayload, initia
                 <div className="divide-y divide-border">{staticFields.map((sf) => (
                   <div key={sf.id} className="group grid grid-cols-[100px_1fr_1fr_28px] items-center gap-2 px-4 py-2">
                     <span className="w-fit rounded border border-blue-200 bg-blue-50 px-2 py-0.5 text-[11px] text-blue-600">String</span>
-                    <div className="min-w-0"><input aria-label="Static field name" list={`static-field-options-${sf.id}`} value={sf.key} onChange={(event) => { setStaticError(''); setStaticFields((prev) => prev.map((field) => field.id === sf.id ? { ...field, key: event.target.value } : field)); }} placeholder="Select or enter field..." className="h-7 w-full rounded-md border border-border bg-card px-2 text-[11px]" /><datalist id={`static-field-options-${sf.id}`}>{srcFields.map((field) => <option key={field} value={field} />)}</datalist></div>
+                    <div className="min-w-0"><select aria-label="Static field name" value={sf.key} onChange={(event) => { setStaticError(''); setStaticFields((prev) => prev.map((field) => field.id === sf.id ? { ...field, key: event.target.value, label: event.target.value } : field)); }} className="h-8 w-full rounded-md border border-border bg-card px-3 text-[11px] focus:outline-none focus:ring-2 focus:ring-blue-400"><option value="">Select field</option>{srcFields.map((field) => <option key={field} value={field} disabled={staticFields.some((other) => other.id !== sf.id && other.key === field)}>{field}</option>)}</select></div>
                     <input aria-label="Static field value" type="text" value={sf.value} onChange={(event) => setStaticFields((prev) => prev.map((field) => field.id === sf.id ? { ...field, value: event.target.value } : field))} placeholder="Enter fixed value" className="h-7 w-full rounded-md border border-border bg-card px-2 text-[11px]" />
                     <button type="button" aria-label="Remove static field" onClick={() => removeStaticField(sf.id)} className="text-muted-foreground opacity-0 transition-all hover:text-red-500 group-hover:opacity-100"><Trash2 size={12} /></button>
                   </div>

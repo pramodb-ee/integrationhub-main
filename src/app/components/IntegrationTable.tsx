@@ -233,7 +233,6 @@ export default function IntegrationTable({ integrations, loading, onRefresh, onE
         return (
           <td key={`cell-${integration.id}-name`} className="px-3 py-3">
             <div className="font-medium text-foreground text-[13px] leading-tight">{integration.name}</div>
-            <div className="text-[11px] text-muted-foreground font-tabular">{integration.id}</div>
           </td>
         );
       case 'type':
